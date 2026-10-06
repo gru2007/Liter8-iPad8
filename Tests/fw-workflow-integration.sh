@@ -112,6 +112,11 @@ assert document["components"]["iBSS"] == "Firmware/dfu/iBSS.test.im4p"
 assert document["bootPlan"] == {
     "normalIBSSAdditionalPlans": ["ibss-skip-display-init"],
     "restoreIBSSAdditionalPlans": ["ibss-skip-display-init"],
+    "firmwareComponents": [
+        "RestoreLogo", "ANE", "AOP", "AVE", "Ap,SecurePageTableMonitor",
+        "GFX", "ISP", "PMP", "SIO", "WCHFirmwareUpdater", "SEP",
+    ],
+    "normalTrustCache": "RestoreTrustCache",
 }
 ''')
 PY
