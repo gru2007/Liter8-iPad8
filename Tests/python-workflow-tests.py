@@ -43,7 +43,7 @@ from device_provision import (  # noqa: E402
 import sshrd  # noqa: E402
 from sshrd import REVIEWED_PAYLOAD_SHA256, build_sshrd, sha256_file  # noqa: E402
 from restore_cfw import managed_tss_proxy, restore_log_path, stage  # noqa: E402
-from tss_proxy import inject_euicc  # noqa: E402
+from tss_proxy import TSSProxyHandler, TSSProxyServer, inject_euicc  # noqa: E402
 from apticket import (  # noqa: E402
     capture_from_debug_log,
     ticket_from_tss_response,
@@ -668,6 +668,12 @@ class ContextTests(unittest.TestCase):
         self.assertFalse((self.work / "tss-proxy.pid").exists())
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
+
+    def test_loopback_tss_startup_does_not_depend_on_reverse_dns(self):
+        with patch("socket.getfqdn", side_effect=AssertionError("unexpected DNS lookup")):
+            with TSSProxyServer(("127.0.0.1", 0), TSSProxyHandler) as server:
+                self.assertEqual(server.server_name, "127.0.0.1")
+                self.assertGreater(server.server_port, 0)
 
     def test_restore_log_paths_are_durable_and_stage_output_is_visible(self):
         context = Context(
