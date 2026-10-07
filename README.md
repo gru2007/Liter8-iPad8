@@ -210,6 +210,7 @@ state. The failure chains and fixes are written up in the docs.
 - [iPhone 11 `24A446` pairing and watchdog research](docs/runs/IOS_27_24A446_PAIRING_AND_WATCHDOG.md)
 - [iPad 8 `23H30` port notes](docs/runs/IPAD8_J171AAP_23H30.md)
 - [iPad 8 tweaks, code signing, passcode and personas](docs/runs/IPAD8_TWEAKS_AND_CODESIGN.md)
+- [iPad 8: полная инструкция от IPSW до тестов (RU)](docs/runs/IPAD8_FULL_GUIDE_RU.md)
 - [Bootstrap and provisioning status](docs/design/BOOTSTRAP_JB_STATUS.md)
 - [Normal boot handoff](docs/design/NORMAL_BOOT_HANDOFF.md)
 - [Performance backlog](docs/BACKLOG.md)

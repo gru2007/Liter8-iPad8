@@ -52,10 +52,9 @@ Three outcomes per resolver:
   me which your build uses.
 - **`ambiguous candidate`** — more than one match; send the offsets.
 
-Do not proceed to a device boot with `--tweaks` until at least
-`ppl-allow-invalid` and `vm-fault-cs-bypass` resolve. `vm-map-protect` is only
-needed for hooks that re-protect pages (most function hooks); ObjC-only tweaks
-can be tested without it.
+`boot-jit` needs all three to resolve; if any reports `no candidate`, a normal
+`get-boot` on the iPad stops until it is fixed. Until then, boot with
+`get-boot --no-tweaks` (ObjC-only tweaks can still be tested that way).
 
 ## 2. Pin them with an exact-build fixture
 
@@ -63,7 +62,7 @@ Once they resolve, bind the exact bytes so a later accidental change is caught:
 
 ```sh
 $B fixture kernel boot-jit kc.raw fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json \
-    --device "iPad 8 (Wi-Fi)" --board j171aap --build 23H30 --component kernelcache
+    --device "iPad 8 (Wi-Fi)" --board j171aap --build 23H30 --component-name kernelcache
 ```
 
 Send me that JSON; I will add it to the fixture tests next to the existing
@@ -93,21 +92,21 @@ $B fw prepare-rootfs --experimental
 $B fw provision      --experimental
 $B fw unmount-rootfs --experimental
 
-# NORMAL BOOT WITH THE TWEAK-HOOK KERNEL:
-$B fw get-boot   --experimental --tweaks
+# NORMAL BOOT (the iPad profile builds boot-jit by default):
+$B fw get-boot   --experimental
 $B fw boot       --experimental
 ```
 
-`--tweaks` builds the normal-boot kernelcache with `boot-jit` instead of
-`boot-public`. Without it you get the ordinary boot (tweaks that only hook ObjC
-methods may still work; function hooks will be killed). The boot manifest in
-`Ramdisk/liter8-boot.json` records `"kernelPlan": "boot-jit"` so you can confirm
-which kernel you booted.
+The iPad profile sets `normalBootRelaxesCodeSigning`, so `get-boot` builds the
+normal-boot kernelcache with `boot-jit` and prints `kernel plan boot-jit`.
+`--no-tweaks` builds `boot-public` instead: the recovery path if a code-signing
+patch is wrong. If a code-signing resolver did not match in step 1, `get-boot`
+stops with `no candidate` until it is fixed or `--no-tweaks` is passed. The
+boot manifest in `Ramdisk/liter8-boot.json` records the `"kernelPlan"`.
 
-> First time: boot once **without** `--tweaks` and confirm the system is stable
-> (SSH, SpringBoard, apps). Only then rebuild with `--tweaks`. That way, if a
-> code-signing patch is wrong, you know the base boot was fine and the kernel is
-> the variable.
+> First time: consider one boot with `--no-tweaks` to confirm the system is
+> stable (SSH, SpringBoard, apps), then rebuild without it. If something breaks
+> afterwards, the kernel plan is the only variable.
 
 ## 4. Confirm the kernel patches took (on device)
 
@@ -185,16 +184,18 @@ kernel patches.
 
 ```sh
 sh device/localauthfix/build.sh          # also runs the self-test on a Mac
-# install it under the bootstrap so lhook injects it process-wide, e.g.:
-scp device/localauthfix/l8localauth.dylib root@DEVICE:/var/jb/usr/lib/
+# install it as an ElleKit tweak; lhook's TweakLoader loads it (Foundation filter):
+scp device/localauthfix/l8localauth.dylib device/localauthfix/l8localauth.plist \
+    root@DEVICE:/var/jb/usr/lib/TweakInject/
 # arm it (root-owned marker; remove to disable):
 ssh root@DEVICE 'touch /private/var/jb/.liter8-localauth && chmod 600 /private/var/jb/.liter8-localauth'
 ```
 
 It must be loaded into the process that shows the prompt (the store's
-`AppDistributionLaunchAngel`, Settings, lockdownd, ...), which lhook injection
-delivers once tweaks are enabled. For a daemon that is not injected, weak-load it
-the way `l8coreauth` is wired in provisioning.
+`AppDistributionLaunchAngel`, Settings, lockdownd, ...). With injection enabled
+(`/var/jb/.lhook_enabled`), the Foundation filter reaches all of them. For a
+daemon that is not injected, weak-load it the way `l8coreauth` is wired in
+provisioning.
 
 If, after this, a store install still fails without a passcode error, the
 remaining blocker is the persona/session state in section 7, not passcode.
@@ -228,7 +229,7 @@ this state risks an unbootable device, so it waits for the dump.
 | Piece | State |
 | --- | --- |
 | Kernel resolvers build + unit tests | done (synthetic images) |
-| `boot-jit` plan, `--tweaks` flag | done |
+| `boot-jit` plan, iPad default, `--tweaks`/`--no-tweaks` | done |
 | lhook scoped-extension injection + early-boot guards | done |
 | `l8localauth` passcode fix + self-test | done (source) |
 | `csprobe`, `personainfo`, `l8localauth` build | source done; build needs the iOS SDK |
