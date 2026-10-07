@@ -1,45 +1,61 @@
-# Files "On My iPad" on the SEP-less iPad 8 boot
+# Local Files on the SEP-less iPad 8 boot
 
-Status: **not fixed.** Measured on iPad11,6 / iPadOS 26.7.1 `23H30`, 2026-10-07.
-This records the cause and what was tried, so the next attempt starts here.
+**Working local storage**, confirmed on iPad11,6 / iPadOS 26.7.1 `23H30`,
+2026-10-07. VPN is a separate repair in `device/vpnfix`.
 
-## Cause, from fileproviderd's own log
+```
+tools/files-local apply
+tools/files-local status
+tools/files-local disable
+```
 
-usermanagerd never created personas on this boot: the kernel persona table holds
-only Liter8's persona 99, and `/private/var/keybags` has `usersession.kb` but no
-`persona.kb`. fileproviderd then fails in a chain:
+The Mac wrapper builds/signs the tweak, installs it through localhost:2222,
+and restarts only FileProvider. It needs the existing ElleKit injection and
+`/var/tmp/liter8-launchctl` helper. No device reboot or SpringBoard restart.
+Apply watches the daemon and disables the marker if it repeatedly exits.
+Disable restores stock behavior without deleting documents. Reopen Files
+following either change. Both wrapper and payload reject other model/builds.
 
-1. `personaAttributesForPersonaType for type:0/2/5 failed` (UserManagement).
-2. `Failed gathering persona for role: 1 - failing volume init`, so
-   `/dev/disk1s2` is "not eligible to store FP library": no domain database.
-3. `Failed finding the default persona` / `Failed to adopt default persona`.
-4. `Extension com.apple.FileProvider.LocalStorage has persona (null)` →
-   `Extension without persona out of the EDU case, dropping ... registration`,
-   so `providerDomainsCompletionHandler` returns 0 providers.
+## Why this works
 
-The LocalStorage extension itself **is** registered with LaunchServices
-(`l8lsreg list fileprovider` shows it), and its app-group container exists, so
-neither re-registration nor container creation is the fix.
+This boot has no personal persona: usermanagerd lists none, the kernel table
+holds only Liter8's persona 99, and `persona.kb` is absent. FileProvider drops
+persona-less extensions and cannot initialize its local volume database.
+Merely preserving their registrations shows an unusable "On My iPad".
 
-## What was tried (tweak in fileproviderd only, marker-gated)
+`l8files` provides a consistent process-local UserManagement view of the
+already mounted single-user volume, only inside fileproviderd and
+LocalStorageFileProvider. It does not allocate a kernel persona, alter keybags,
+or enable Shared iPad. Existing successful attribute/current-persona results
+are preserved; the fallback handles missing results.
 
-| Attempt | Result |
-| --- | --- |
-| Keep persona-less extensions (`-[FPDProviderDescriptor isPersonaLegit]` → YES) | 3 providers returned, but `state:disabled`, `db:(null)`; root lookup fails `NSFileProviderErrorDomain -2001/-2013`. Volume init (step 2) still fails. |
-| `-[UMUserManager isSharedIPad]` → YES (the EDU branches) | **Crash loop**: fileproviderd enters the Shared iPad sync-bubble path and asserts (`FPDSyncBubble.m:38`). |
-| Synthetic personal persona attributes (`UMUserPersonaAttributes`, type 0) | **Crash loop**: `[CRIT] One persona is unexpectedly nil: existing (null), requested <uuid>`. fileproviderd adopts the persona for real; a process with no kernel/voucher persona cannot. |
+The extension must launch without the fallback UUID: it is not a real kernel
+persona. EXPersona's encoder reads the ivar directly, bypassing getter hooks.
+The tweak therefore encodes an empty EXPersona for that one fallback UUID.
+The extension receives the same local UM view after launch, so its persona
+comparison with the host succeeds.
 
-All three were removed from the device; fileproviderd returned to stock.
+Only the LocalStorage provider is admitted while active. CloudDocs/iCloud and
+Photos are excluded: their unmodified extensions cannot match the fallback
+persona and would terminate fileproviderd. This repair does **not** establish
+working iCloud Drive, real persona support, or the security properties of SEP.
 
-## What a real fix needs
+## Verification
 
-A real personal persona: usermanagerd creating it (kernel persona plus its
-manifest), so processes get a voucher persona and UserManagement answers type 0.
-Client-side substitution stops at persona adoption. The install path has its own
-working workaround (`device/personafix/l8persona`, `device/marketplacefix`).
+- Local volume `/dev/disk1s2` initialized.
+- LocalStorage launched normally through ExtensionKit, with no kernel persona.
+- Provider list returns LocalStorage enabled.
+- `FPItemManager` root lookup succeeds with read/write capabilities.
+- `FPCreateFolderOperation` created a unique test folder without error; the
+  empty test folder was then removed.
+- The user confirmed creating a folder in Files works.
 
-## Tool
+## Earlier unsuccessful attempts
 
-`l8lsreg list [substring]` prints registered plug-ins (identifier, extension
-point, path); `framework <path>` and `plugin <path>` re-register through
-LSApplicationWorkspace. Build with `device/filesfix/build.sh`.
+Keeping persona-less descriptors alone left disabled providers and no DB.
+Claiming Shared iPad caused a sync-bubble assertion. Fallback attributes alone
+caused `FPPerformWithPersona` to assert because current persona was missing.
+Allowing all providers after the local workaround caused CloudDocs to report
+non-matching personas and shut down the daemon. None is a standalone fix.
+
+`l8lsreg list [substring]` remains available for read-only plug-in inspection.

@@ -52,3 +52,5 @@ device/spawnprobe/personaalloc
 /device/vpnfix/issue
 /device/vpnfix/l8vpn.dylib
 /device/vpnfix/*.build
+
+/device/filesfix/l8files.dylib

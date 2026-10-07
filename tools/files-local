@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+"""Install or disable local Files compatibility on iPad11,6 / 23H30."""
+import pathlib
+import subprocess
+import sys
+import time
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+def remote(command, data=None):
+    return subprocess.run([str(ROOT/'tools/sshdev'), command], input=data,
+                          stdout=subprocess.PIPE, check=True).stdout.decode()
+
+def guard():
+    if remote('sysctl -n hw.machine kern.osversion').splitlines() != ['iPad11,6','23H30']:
+        raise RuntimeError('Only iPad11,6 / 23H30 is supported')
+
+RELOAD = '/var/tmp/liter8-launchctl kickstart -k user/501/com.apple.FileProvider'
+
+def main():
+    action = sys.argv[1] if len(sys.argv)==2 else ''
+    if action not in ('apply','disable','status'):
+        raise SystemExit('usage: tools/files-local apply|disable|status')
+    guard()
+    if action == 'status':
+        print(remote('ls -l /var/jb/.liter8-files /var/jb/usr/lib/TweakInject/l8files.* 2>/dev/null; ps aux | grep -E "[f]ileproviderd|[L]ocalStorageFileProvider" || true'))
+    elif action == 'disable':
+        remote('rm -f /var/jb/.liter8-files; '+RELOAD)
+        print('Local Files compatibility disabled. No document data removed.')
+    else:
+        if remote('test -x /var/tmp/liter8-launchctl && echo yes').strip() != 'yes':
+            raise RuntimeError('The existing Liter8 launchctl helper is required')
+        subprocess.run(['sh',str(ROOT/'device/filesfix/build.sh')],check=True)
+        for name,mode in [('l8files.dylib','755'),('l8files.plist','644')]:
+            target='/var/jb/usr/lib/TweakInject/'+name
+            remote(f'cat > {target}.new && chmod {mode} {target}.new && mv {target}.new {target}',(ROOT/'device/filesfix'/name).read_bytes())
+        remote('touch /var/jb/.liter8-files; chown root:wheel /var/jb/.liter8-files; chmod 600 /var/jb/.liter8-files; '+RELOAD)
+        seen=set()
+        for _ in range(10):
+            rows=remote('ps aux | grep "[f]ileproviderd" || true').splitlines()
+            seen.update(row.split()[1] for row in rows if row.split()[-1].endswith('/fileproviderd'))
+            if len(seen)>2:
+                remote('rm -f /var/jb/.liter8-files; '+RELOAD)
+                raise RuntimeError('Daemon repeatedly exited; marker disabled and stock daemon restored')
+            time.sleep(2)
+        print('Enabled for local storage. Reopen Files. iCloud/Photos providers are excluded while active.')
+
+if __name__=='__main__':
+    main()

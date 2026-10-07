@@ -8,7 +8,7 @@ LDID=../../tools/ldid_macosx_arm64
 "$LDID" -v 2>&1 | grep -q "Link Identity Editor" || LDID=$(command -v ldid || true)
 # Command Line Tools have no iPhoneOS SDK. Point LITER8_IOS_SDK at an
 # unpacked one (for example Theos's) to build without Xcode.
-SDK="${LITER8_IOS_SDK:-$(xcrun --sdk iphoneos --show-sdk-path)}"
+SDK="${LITER8_IOS_SDK:-$HOME/theos/sdks/iPhoneOS16.5.sdk}"
 [ -d "$SDK" ] || { echo "[!] iOS SDK missing: $SDK" >&2; exit 1; }
 
 xcrun clang -isysroot "$SDK" -arch arm64 -arch arm64e \
@@ -19,3 +19,8 @@ codesign -d --entitlements :- l8lsreg 2>/dev/null | grep -q get-task-allow \
     && { echo "[!] l8lsreg carries get-task-allow, AMFI will kill it"; exit 1; }
 echo "[+] l8lsreg  $(wc -c < l8lsreg | tr -d ' ') bytes"
 
+
+xcrun clang -isysroot "$SDK" -arch arm64 -arch arm64e \
+    -miphoneos-version-min=15.0 -O2 -Wall -Wextra -fobjc-arc -dynamiclib \
+    -framework Foundation l8files.m -o l8files.dylib
+"$LDID" -S -Cadhoc l8files.dylib
