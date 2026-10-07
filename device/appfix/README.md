@@ -1,4 +1,4 @@
-# NewTerm / iCleaner launch compatibility on iPad11,6 23H30
+# NewTerm / iCleaner / Sileo launch compatibility on iPad11,6 23H30
 
 Apply: `tools/app-launch apply`
 Inspect: `tools/app-launch status`
@@ -23,15 +23,18 @@ were restored. Authentication configuration is unchanged.
 Both adapters use existing kernel persona 99, with uid/gid 0 and override flag
 1. A separate spawned stage normalizes real credentials before executing the
 original binary. Persona plus POSIX_SPAWN_SETEXEC returned ENOTSUP on this
-kernel, so the original app process waits for its child instead.
+kernel, so a separate stage is spawned. iCleaner's parent must enter UIApplicationMain
+and complete application launch while a watcher waits for the child. The earlier
+blocking wait in main caused a process-launch watchdog kill after 20 seconds.
 
 - iCleaner: fixed original app path only, GUI launch only. The root child opens
   the existing iCleaner app; no cleanup is automatically requested. Root/CLI
   invocations pass straight through to the original binary.
 - NewTerm: only the exact six-argument forced **mobile** login from the app's
   NewTermLoginHelper path uses persona. All other login commands pass through.
-  Original login performs its normal PAM/account checks and starts the terminal
-  as mobile; this does not turn the terminal into a root shell.
+  By the owner's explicit request, the stage now changes the login user to root
+  and the initial directory to /var/jb/var/root. Original login starts a root
+  terminal. Other invocations of login still pass through unchanged.
 
 Both accepted /var/jb and /private/var/jb paths are handled for NewTerm.
 Entitlements use the repo's existing AMFI-tested persona/spawn set; get-task-allow
@@ -39,13 +42,26 @@ is deliberately absent.
 
 ## Verified on 2026-10-07
 
-- iCleaner root stage had uid/euid 0, and its original UIKit process stayed alive.
-  No cleaning was performed. UI confirmation remains pending.
+- iCleaner root stage had uid/euid 0. Both its parent and original UIKit child
+  stayed alive past the former 20-second watchdog limit (over two minutes),
+  without a new crash report. No cleaning was performed. UI confirmation remains
+  pending.
 - NewTerm: original login spawned NewTermLoginHelper, which exec'd zsh; `ps`
-  confirmed a live mobile `-zsh` attached to terminal s002. UI/input confirmation
+  confirmed a live root `-zsh` attached to terminal s002. UI/input confirmation
   remains pending.
 - The installed payloads were subsequently rebuilt with guards and EINTR-safe
   waits through `tools/app-launch apply`.
+
+## Sileo signature and registration
+
+Sileo launch failed with launchd spawn error 153. Its installed signature claimed
+get-task-allow and dozens of kernel/task/launchd privileges unsupported on this
+experimental build. Apply backs up Sileo as Sileo.liter8-before and signs it with
+the same tested six-entitlement set used by the launch adapters, preserving its
+original Keychain access groups. Then uicache registers only Sileo.app. The next
+launch succeeded and Sileo remained alive. Icon appearance and app UI still need
+owner confirmation. Restore reinstates Sileo's original signature and registers
+it again. No repository list or package data is deleted.
 
 This is a compatibility adapter, not a universal fix for all setuid applications.
 Tab termination, background lifecycle, and cleanup operations are not yet

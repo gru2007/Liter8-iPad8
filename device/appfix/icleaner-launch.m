@@ -1,4 +1,8 @@
+#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
+#include <pthread.h>
 /* Root launch of this app only using the existing Liter8 persona 99.
+ * The parent completes UIApplication startup while a watcher reaps the root child.
  * No daemon, arbitrary command interface, or setuid binary is introduced. */
 #include <spawn.h>
 #include <unistd.h>
@@ -10,6 +14,14 @@
 #include <sys/wait.h>
 #include <errno.h>
 extern char **environ;
+@interface L8LauncherDelegate : UIResponder <UIApplicationDelegate>
+@end
+@implementation L8LauncherDelegate
+- (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(NSDictionary *)options {return YES;}
+@end
+static pid_t runningChild;
+static void *watchChild(void *unused){int status=0;pid_t w;do{w=waitpid(runningChild,&status,0);}while(w<0&&errno==EINTR);_exit(w<0?1:(WIFEXITED(status)?WEXITSTATUS(status):1));return NULL;}
+
 int main(int argc,char **argv){
  os_log_error(OS_LOG_DEFAULT,"l8icleaner: entry uid=%d euid=%d",getuid(),geteuid());
  char machine[64]={0},build[64]={0};size_t n=sizeof(machine);
@@ -30,7 +42,9 @@ int main(int argc,char **argv){
  pid_t child=0;
  char *stage[]={"/var/jb/Applications/iCleaner.app/iCleaner","--stage",NULL};
  if(!r)r=posix_spawn(&child,stage[0],NULL,&attr,stage,environ);
- if(!r){int status=0;pid_t w;do{w=waitpid(child,&status,0);}while(w<0&&errno==EINTR);if(w<0)return 1;return WIFEXITED(status)?WEXITSTATUS(status):1;}
+ if(!r){runningChild=child;pthread_t watcher;if(pthread_create(&watcher,NULL,watchChild,NULL))return 1;pthread_detach(watcher);
+ @autoreleasepool {return UIApplicationMain(argc,argv,nil,@"L8LauncherDelegate");}}
+
  os_log_error(OS_LOG_DEFAULT,"l8icleaner: root launch error=%d",r);
  return 1;
 }

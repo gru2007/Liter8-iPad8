@@ -1,4 +1,5 @@
-/* Keep normal login behavior; only NewTerm's forced mobile login uses persona 99. */
+/* NewTerm uses a root login by the device owner's explicit request.
+ * Other login commands retain their original behavior. */
 #include <spawn.h>
 #include <unistd.h>
 #include <dlfcn.h>
@@ -30,9 +31,9 @@ int main(int argc,char **argv){
  if(!r)r=persona(&attr,99,1);
  if(!r)r=uid(&attr,0);
  if(!r)r=gid(&attr,0);
- char *args[9]={"/var/jb/usr/bin/login","--liter8-root-stage",argv[1],argv[2],argv[3],argv[4],argv[5],NULL};
+ char *args[9]={"/var/jb/usr/bin/login","--liter8-root-stage",argv[1],"root",argv[3],"/var/jb/var/root",argv[5],NULL};
  pid_t child=0;if(!r)r=posix_spawn(&child,args[0],NULL,&attr,args,environ);
  if(r){os_log_error(OS_LOG_DEFAULT,"l8login: spawn failed=%d",r);return 1;}
- os_log_error(OS_LOG_DEFAULT,"l8login: mobile terminal login child=%d",child);
+ os_log_error(OS_LOG_DEFAULT,"l8login: root terminal login child=%d",child);
  int status=0;pid_t w;do{w=waitpid(child,&status,0);}while(w<0&&errno==EINTR);if(w<0)return 1;return WIFEXITED(status)?WEXITSTATUS(status):1;
 }

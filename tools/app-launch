@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Apply/restore narrow NewTerm and iCleaner root launch adapters, without reboot."""
-import argparse, pathlib, shlex, subprocess
+import argparse, pathlib, shlex, subprocess, plistlib, tempfile
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 def ssh(cmd,data=None):
  return subprocess.run([str(ROOT/'tools/sshdev'),cmd],input=data,stdout=subprocess.PIPE,check=True).stdout
@@ -14,11 +14,26 @@ if a.action=='apply':
   ssh(f'test -f {q} && if ! test -f {backup}; then cp -p {q} {backup}; fi')
   ssh(f'cat > {tmp}',(ROOT/'device/appfix'/name).read_bytes())
   ssh(f'chown root:wheel {tmp} && chmod 755 {tmp} && mv {tmp} {q}')
+ # Repair Sileo's unsupported signing entitlements while preserving its Keychain group.
+ path='/var/jb/Applications/Sileo.app/Sileo'; q=shlex.quote(path)
+ backup=shlex.quote(path+'.liter8-before'); tmp=shlex.quote(path+'.liter8-new')
+ ssh(f'test -f {q} && if ! test -f {backup}; then cp -p {q} {backup}; fi')
+ with tempfile.TemporaryDirectory(prefix='liter8-sileo-') as temp:
+  binary=pathlib.Path(temp)/'Sileo'; entfile=pathlib.Path(temp)/'entitlements.plist'
+  binary.write_bytes(ssh('cat '+backup))
+  original=plistlib.loads(subprocess.check_output([str(ROOT/'tools/ldid_macosx_arm64'),'-e',str(binary)]))
+  ent=plistlib.loads((ROOT/'device/spawnprobe/e_both.plist').read_bytes())
+  if 'keychain-access-groups' in original: ent['keychain-access-groups']=original['keychain-access-groups']
+  entfile.write_bytes(plistlib.dumps(ent))
+  subprocess.run([str(ROOT/'tools/ldid_macosx_arm64'),'-S'+str(entfile),'-Cadhoc',str(binary)],check=True)
+  ssh('cat > '+tmp,binary.read_bytes())
+  ssh(f'chown root:wheel {tmp} && chmod 755 {tmp} && mv {tmp} {q} && uicache -p /var/jb/Applications/Sileo.app')
  print('Installed. Close and reopen NewTerm and iCleaner; no reboot or respring needed.')
 elif a.action=='restore':
  for path,name in items:
   q=shlex.quote(path);backup=shlex.quote(path+'.liter8-real');tmp=shlex.quote(path+'.liter8-new')
   ssh(f'test -f {backup} && cp -p {backup} {tmp} && mv {tmp} {q}')
+ ssh('test -f /var/jb/Applications/Sileo.app/Sileo.liter8-before && cp -p /var/jb/Applications/Sileo.app/Sileo.liter8-before /var/jb/Applications/Sileo.app/Sileo.liter8-new && mv /var/jb/Applications/Sileo.app/Sileo.liter8-new /var/jb/Applications/Sileo.app/Sileo && uicache -p /var/jb/Applications/Sileo.app')
  print('Original binaries restored. Close/reopen apps to stop using the adapters.')
 for path,name in items:
  print(ssh('ls -l '+shlex.quote(path)+' '+shlex.quote(path+'.liter8-real')).decode().strip())
