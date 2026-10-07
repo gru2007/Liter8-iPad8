@@ -119,9 +119,11 @@ int main(void) {
 
     printf("\n=== daemons on the System volume ===\n");
     report_path("/usr/libexec/usermanagerd");
-    report_path("/usr/libexec/mobiledistributiond");
-    report_path("/System/Library/PrivateFrameworks/MobileInstall.framework");
-    report_path("/usr/libexec/installcoordinationd");
+    report_path("/usr/libexec/installd");
+    report_path("/System/Library/PrivateFrameworks/InstallCoordination.framework/Support/installcoordinationd");
+    report_path("/System/Library/Frameworks/ManagedAppDistribution.framework/Support/managedappdistributiond");
+    report_path("/private/var/keybags/usersession.kb");
+    report_path("/private/var/keybags/persona.kb");
 
     printf("\n[personainfo] done. Send this whole output back.\n");
     return 0;
