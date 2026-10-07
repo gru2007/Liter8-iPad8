@@ -944,14 +944,15 @@ do {
             }
             let payload = try Data(contentsOf: payloadURL, options: [.mappedIfSafe])
             let output = try artifact.encoded(replacingPayloadWith: payload)
-            try output.write(to: outputURL, options: .atomic)
 
             // Re-open our own result and compare the extracted payload. This
-            // catches DER-length or PAYP mistakes before reporting success.
+            // catches DER-length or PAYP mistakes before anything is written,
+            // so a failed repack leaves a previous output untouched.
             let roundTrip = try FirmwareArtifact(data: output)
             guard roundTrip.kind == .im4p, roundTrip.payload == payload else {
                 throw PatchfinderError.invalidFirmwareContainer("repacked payload failed round-trip verification")
             }
+            try output.write(to: outputURL, options: .atomic)
             print("repacked \(artifact.fourcc ?? "IM4P") and verified \(payload.count)-byte payload")
             print("wrote \(outputURL.path)")
 
