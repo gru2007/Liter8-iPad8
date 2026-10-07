@@ -234,6 +234,14 @@ public enum KernelResolverProfileRegistry {
                     signature: "ios26-23H30-acm-v1",
                     payload: "acm-return-success-v1"
                 ),
+                // Opt-in: include the code-signing-invalid patches in the
+                // kernel-boot-jit plan so runtime tweak hooks are not killed.
+                // Experimental; confirm each resolver against this kernel
+                // before relying on it. See KernelCodeSigningResolver.
+                "kernel-codesign-invalid": ResolverVariantProfile(
+                    signature: "t8020-codesign-invalid-v1",
+                    payload: "codesign-invalid-allow-v1"
+                ),
             ],
             // No scoped Sandbox predecessor, so no Valeria cave. Not ported.
             omittedResolvers: [KernelValeriaResolver.name]

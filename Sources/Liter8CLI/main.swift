@@ -35,8 +35,9 @@ private func usage() -> Never {
                   ibss-ramdisk, ibss-skip-display-init,
                   ibec-ignore-pinot-failure, ibec-force-pinot-id
       kernel      restore, ppl-trust-cache, boot-policy, aks, sep-silence,
-                  sep, credential-manager, sandbox, sandbox-public, valeria,
-                  boot, boot-public, diagnostic
+                  sep, credential-manager, sandbox, sandbox-public,
+                  ppl-allow-invalid, vm-fault-cs-bypass, vm-map-protect,
+                  valeria, boot, boot-public, boot-jit, diagnostic
       txm         restore, boot
       userland    restored-fdr, asr, coreauthd, ctkd, mobileactivationd
       devicetree  restore, normal
@@ -98,8 +99,12 @@ let resolverGroups: [String: [String: String]] = [
         "credential-manager": KernelCredentialManagerResolver.name,
         "sandbox": KernelSandboxResolver.name,
         "sandbox-public": KernelSandboxCompatibilityResolver.name,
+        "ppl-allow-invalid": KernelPPLAllowInvalidResolver.name,
+        "vm-fault-cs-bypass": KernelVMFaultCSBypassResolver.name,
+        "vm-map-protect": KernelVMMapProtectResolver.name,
         "valeria": KernelValeriaResolver.name,
         "boot": KernelBootResolver.name,
+        "boot-jit": KernelBootJITResolver.name,
         // Keep the public CLI spelling stable while the Swift type describes
         // the plan's real cross-build compatibility contract.
         "boot-public": KernelBootCompatibilityResolver.name,
@@ -260,6 +265,15 @@ func resolveRecords(
     case KernelSandboxCompatibilityResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelSandboxCompatibilityResolver().resolve(in: image)
+    case KernelPPLAllowInvalidResolver.name:
+        guard options.bootArguments == nil, options.panelID == nil else { usage() }
+        return try KernelPPLAllowInvalidResolver().resolve(in: image)
+    case KernelVMFaultCSBypassResolver.name:
+        guard options.bootArguments == nil, options.panelID == nil else { usage() }
+        return try KernelVMFaultCSBypassResolver().resolve(in: image)
+    case KernelVMMapProtectResolver.name:
+        guard options.bootArguments == nil, options.panelID == nil else { usage() }
+        return try KernelVMMapProtectResolver().resolve(in: image)
     case KernelValeriaResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelValeriaResolver().resolve(in: image)
@@ -269,6 +283,9 @@ func resolveRecords(
     case KernelBootCompatibilityResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelBootCompatibilityResolver().resolve(in: image)
+    case KernelBootJITResolver.name:
+        guard options.bootArguments == nil, options.panelID == nil else { usage() }
+        return try KernelBootJITResolver().resolve(in: image)
     case KernelDiagnosticResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelDiagnosticResolver().resolve(in: image)
