@@ -14,6 +14,11 @@
 //                                             the PPL allow-invalid patch
 //                                             are missing
 //
+// A second test then asks ElleKit itself (MSHookFunction from
+// /var/jb/usr/lib/libsubstrate.dylib) to hook another isolated function, the
+// way a C-hooking tweak does. It runs even when the raw kernel test fails:
+// that is the answer that matters for tweaks.
+//
 // The target lives alone on its own page (its own section, padded to the page
 // size), so making that page RW never touches main() or the stubs. A
 // single-step RWX request is tried afterwards for information only: hooks do
@@ -29,6 +34,7 @@
 //
 // Build: device/csprobe/build.sh (ad-hoc, no get-task-allow).
 
+#include <dlfcn.h>
 #include <libkern/OSCacheControl.h>
 #include <mach/mach.h>
 #include <mach/mach_error.h>
@@ -55,6 +61,47 @@ __asm__(
     ".text\n");
 extern int csprobe_target(void);
 
+// Second isolated target for the ElleKit test; returns 0x33.
+__asm__(
+    ".section __TEXT,__csprobe2,regular,pure_instructions\n"
+    ".p2align 14\n"
+    ".globl _csprobe_hook_target\n"
+    "_csprobe_hook_target:\n"
+    "    mov w0, #0x33\n"
+    "    ret\n"
+    ".p2align 14\n"
+    ".text\n");
+extern int csprobe_hook_target(void);
+
+static int hook_replacement(void) { return 0x44; }
+
+typedef void (*MSHookFunction_t)(void *symbol, void *replace, void **result);
+
+// 0 = hooked and verified, 1 = hook did not take, 2 = ElleKit unavailable.
+static int ellekit_test(void) {
+    const char *path = "/var/jb/usr/lib/libsubstrate.dylib";
+    void *handle = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
+    MSHookFunction_t hook = handle ? (MSHookFunction_t)dlsym(handle, "MSHookFunction") : NULL;
+    if (hook == NULL) {
+        printf("[csprobe] ellekit: MSHookFunction unavailable (%s)\n", dlerror());
+        return 2;
+    }
+    printf("[csprobe] ellekit: baseline hook_target() = 0x%x (expected 0x33)\n",
+           csprobe_hook_target());
+    void *original = NULL;
+    printf("[csprobe] ellekit: MSHookFunction...\n");
+    hook((void *)csprobe_hook_target, (void *)hook_replacement, &original);
+    int value = csprobe_hook_target();
+    printf("[csprobe] ellekit: hook_target() = 0x%x (expected 0x44), original=%p\n",
+           value, original);
+    if (value == 0x44) {
+        printf("[csprobe] ellekit PASS: C function hook works\n");
+        return 0;
+    }
+    printf("[csprobe] ellekit FAIL: the hook did not take\n");
+    return 1;
+}
+
 // mov w0, #0x22 ; ret
 static const uint32_t kReplacement[2] = { 0x52800440u, 0xD65F03C0u };
 
@@ -67,10 +114,7 @@ static void *code_address(void) {
     return fn;
 }
 
-int main(void) {
-    setvbuf(stdout, NULL, _IONBF, 0);
-    printf("[csprobe] pid %d\n", getpid());
-
+static int kernel_test(void) {
     void *fn = code_address();
     size_t span = (size_t)getpagesize();
     uintptr_t page = (uintptr_t)fn & ~((uintptr_t)span - 1);
@@ -116,4 +160,14 @@ int main(void) {
                     VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE);
     printf("[csprobe] info: single-step RWX -> %d (%s)\n", kr, mach_error_string(kr));
     return 0;
+}
+
+int main(void) {
+    setvbuf(stdout, NULL, _IONBF, 0);
+    printf("[csprobe] pid %d\n", getpid());
+    int kernel = kernel_test();
+    int elle = ellekit_test();
+    printf("[csprobe] summary: kernel=%s ellekit=%s\n", kernel == 0 ? "PASS" : "FAIL",
+           elle == 0 ? "PASS" : elle == 1 ? "FAIL" : "unavailable");
+    return kernel == 0 && elle == 0 ? 0 : 1;
 }
