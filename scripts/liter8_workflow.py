@@ -60,6 +60,7 @@ class Context:
     restore_ibss_additional_plans: tuple[str, ...] = ()
     preserve_im4p_compression: bool = False
     normal_boot_static_trust_cache: bool = False
+    normal_boot_relaxes_code_signing: bool = False
 
     @classmethod
     def load(cls) -> "Context":
@@ -86,6 +87,9 @@ class Context:
         static_trust_cache = boot_plan.get("normalBootUsesStaticTrustCache")
         if not isinstance(static_trust_cache, bool):
             raise WorkflowError("Liter8 context boot plan has no normal-boot trust cache policy")
+        relax_code_signing = boot_plan.get("normalBootRelaxesCodeSigning")
+        if not isinstance(relax_code_signing, bool):
+            raise WorkflowError("Liter8 context boot plan has no code-signing policy")
 
         work = Path.cwd().resolve()
         source = Path(document["sourceRoot"]).resolve()
@@ -105,6 +109,7 @@ class Context:
             restore_ibss_additional_plans=restore_plans,
             preserve_im4p_compression=preserve_compression,
             normal_boot_static_trust_cache=static_trust_cache,
+            normal_boot_relaxes_code_signing=relax_code_signing,
         )
 
     def component(self, name: str, *, in_cfw: bool = False) -> Path:

@@ -25,6 +25,7 @@ import measure_guards  # noqa: E402
 from boot_artifacts import (  # noqa: E402
     PASSTHROUGH_IMG4,
     has_txm,
+    normal_kernel_plan,
     publish_directory,
     ticket_from_environment,
     write_boot_manifest,
@@ -266,6 +267,7 @@ class ContextTests(unittest.TestCase):
                 "restoreIBSSAdditionalPlans": ["ibss-skip-display-init"],
                 "preservesIM4PCompression": False,
                 "normalBootUsesStaticTrustCache": False,
+                "normalBootRelaxesCodeSigning": False,
             },
         }))
         self.environment = {
@@ -307,6 +309,19 @@ class ContextTests(unittest.TestCase):
             os.chdir(self.work)
             with patch.dict(os.environ, self.environment, clear=True):
                 with self.assertRaisesRegex(WorkflowError, "no reviewed boot plan"):
+                    Context.load()
+        finally:
+            os.chdir(previous)
+
+    def test_rejects_boot_plan_without_code_signing_policy(self):
+        document = json.loads(self.context_file.read_text())
+        del document["bootPlan"]["normalBootRelaxesCodeSigning"]
+        self.context_file.write_text(json.dumps(document))
+        previous = Path.cwd()
+        try:
+            os.chdir(self.work)
+            with patch.dict(os.environ, self.environment, clear=True):
+                with self.assertRaisesRegex(WorkflowError, "no code-signing policy"):
                     Context.load()
         finally:
             os.chdir(previous)
@@ -1152,6 +1167,22 @@ class ContextTests(unittest.TestCase):
         for mode, static in (("normal", False), ("restore", True), ("restore", False)):
             self.assertIn("RestoreTrustCache.img4", names(mode, static))
             self.assertNotIn("StaticTrustCache.img4", names(mode, static))
+
+    def test_normal_kernel_plan_follows_profile_and_flags(self):
+        research = type("C", (), {"normal_boot_relaxes_code_signing": True})()
+        reviewed = type("C", (), {"normal_boot_relaxes_code_signing": False})()
+        cases = [
+            ({}, research, "boot-jit"),
+            ({}, reviewed, "boot-public"),
+            ({"LITER8_ENABLE_TWEAK_HOOKS": "1"}, reviewed, "boot-jit"),
+            ({"LITER8_DISABLE_TWEAK_HOOKS": "1"}, research, "boot-public"),
+            # --no-tweaks is the recovery path, so it wins.
+            ({"LITER8_ENABLE_TWEAK_HOOKS": "1", "LITER8_DISABLE_TWEAK_HOOKS": "1"},
+             research, "boot-public"),
+        ]
+        for environment, context, expected in cases:
+            with patch.dict(os.environ, environment, clear=True):
+                self.assertEqual(normal_kernel_plan(context), expected, environment)
 
     def test_rejects_partial_sptm_txm_boot_chain(self):
         components = {name: name for name, _, _ in PASSTHROUGH_IMG4}

@@ -56,9 +56,10 @@ private func usage() -> Never {
                 (make-cfw, get-rd, get-boot). Off by default: it moves the
                 kernel console to the UART and the device screen stops showing
                 the verbose boot log.
-      --tweaks  get-boot only: build the normal-boot kernelcache with the
-                code-signing-invalid patches (kernel boot-jit) so runtime tweak
-                hooks survive. Off by default; weakens code signing per process.
+      --tweaks / --no-tweaks  get-boot only: force the normal-boot kernel plan
+                to boot-jit (code-signing-invalid patches, runtime tweak hooks
+                survive) or to boot-public. Without either, the profile decides:
+                on for the iPad 8 research profile, off for reviewed iPhones.
       --records-out <records.json>  write records from the same apply operation
       --preserve-compression  apply and im4p repack: keep the shipped IM4P
                 compression instead of writing the payload back uncompressed
@@ -503,6 +504,7 @@ do {
         var includeExperimental = false
         var serialConsole = false
         var enableTweakHooks = false
+        var disableTweakHooks = false
         var index = 2
         while index < arguments.count {
             if arguments[index] == "--serial" {
@@ -512,6 +514,11 @@ do {
             }
             if arguments[index] == "--tweaks" {
                 enableTweakHooks = true
+                index += 1
+                continue
+            }
+            if arguments[index] == "--no-tweaks" {
+                disableTweakHooks = true
                 index += 1
                 continue
             }
@@ -656,11 +663,14 @@ do {
             }
             // The tweak-hook kernel plan is baked into the normal-boot
             // kernelcache, so it is meaningful only for get-boot.
-            guard !enableTweakHooks || action == "get-boot" else {
+            guard (!enableTweakHooks && !disableTweakHooks) || action == "get-boot" else {
                 throw PatchfinderError.invalidFixture(
-                    "--tweaks is only valid for fw get-boot: it selects the kernel "
-                        + "plan written into the normal-boot kernelcache"
+                    "--tweaks and --no-tweaks are only valid for fw get-boot: they "
+                        + "select the kernel plan written into the normal-boot kernelcache"
                 )
+            }
+            guard !(enableTweakHooks && disableTweakHooks) else {
+                throw PatchfinderError.invalidFixture("--tweaks and --no-tweaks are mutually exclusive")
             }
             var workflowEnvironment: [String: String] = [:]
             if serialConsole {
@@ -668,6 +678,9 @@ do {
             }
             if enableTweakHooks {
                 workflowEnvironment["LITER8_ENABLE_TWEAK_HOOKS"] = "1"
+            }
+            if disableTweakHooks {
+                workflowEnvironment["LITER8_DISABLE_TWEAK_HOOKS"] = "1"
             }
             if let irecoveryArgument {
                 workflowEnvironment["LITER8_IRECOVERY"] = irecoveryArgument

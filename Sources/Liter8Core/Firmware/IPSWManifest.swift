@@ -133,17 +133,24 @@ public struct DeviceBootPlan: Codable, Equatable, Sendable {
     /// n104 boots both modes with the restore cache; j171aap's normal boot
     /// needs the System-volume cache. SSHRD always uses the restore cache.
     public let normalBootUsesStaticTrustCache: Bool
+    /// Build the normal-boot kernel with `boot-jit` instead of `boot-public`,
+    /// so every process may run code it has modified (runtime tweak hooks).
+    /// For a dedicated research device that tradeoff is the point; reviewed
+    /// iPhone profiles leave it off. `fw get-boot --no-tweaks` overrides it.
+    public let normalBootRelaxesCodeSigning: Bool
 
     public init(
         normalIBSSAdditionalPlans: [DeviceIBSSAdditionalPlan],
         restoreIBSSAdditionalPlans: [DeviceIBSSAdditionalPlan],
         preservesIM4PCompression: Bool = false,
-        normalBootUsesStaticTrustCache: Bool = false
+        normalBootUsesStaticTrustCache: Bool = false,
+        normalBootRelaxesCodeSigning: Bool = false
     ) {
         self.normalIBSSAdditionalPlans = normalIBSSAdditionalPlans
         self.restoreIBSSAdditionalPlans = restoreIBSSAdditionalPlans
         self.preservesIM4PCompression = preservesIM4PCompression
         self.normalBootUsesStaticTrustCache = normalBootUsesStaticTrustCache
+        self.normalBootRelaxesCodeSigning = normalBootRelaxesCodeSigning
     }
 }
 
@@ -478,7 +485,8 @@ public enum DeviceWorkflowRegistry {
                 normalIBSSAdditionalPlans: [],
                 restoreIBSSAdditionalPlans: [],
                 preservesIM4PCompression: true,
-                normalBootUsesStaticTrustCache: true
+                normalBootUsesStaticTrustCache: true,
+                normalBootRelaxesCodeSigning: true
             )
         ),
     ]

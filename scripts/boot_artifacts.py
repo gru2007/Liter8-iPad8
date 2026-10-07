@@ -68,6 +68,21 @@ def has_txm(components: dict[str, str], mode: str) -> bool:
     return has_monitor
 
 
+def normal_kernel_plan(context: Context) -> str:
+    """Kernel plan for the normal-boot kernelcache.
+
+    boot-jit adds the code-signing-invalid patches so runtime tweak hooks are
+    not killed. The profile decides the default (on for the iPad research
+    device); fw get-boot --tweaks forces it on and --no-tweaks forces it off,
+    the latter being the recovery path when a code-signing patch is wrong.
+    """
+    if os.environ.get("LITER8_DISABLE_TWEAK_HOOKS") == "1":
+        return "boot-public"
+    if os.environ.get("LITER8_ENABLE_TWEAK_HOOKS") == "1":
+        return "boot-jit"
+    return "boot-jit" if context.normal_boot_relaxes_code_signing else "boot-public"
+
+
 def ticket_from_environment() -> Path:
     value = os.environ.get("LITER8_AP_TICKET")
     if not value:
@@ -213,11 +228,8 @@ def build_normal_boot() -> None:
         print("[*] normal boot: patching kernelcache", flush=True)
         kernel = staging / ".Kernelcache.im4p"
         shutil.copy2(context.component("KernelCache"), kernel)
-        # boot-jit adds the code-signing-invalid patches so runtime tweak hooks
-        # are not killed. It is opt-in (fw get-boot --tweaks) because it weakens
-        # code signing for every process, and its extra records resolve only on
-        # a kernel profile that registers the patches.
-        kernel_plan = "boot-jit" if os.environ.get("LITER8_ENABLE_TWEAK_HOOKS") == "1" else "boot-public"
+        kernel_plan = normal_kernel_plan(context)
+        print(f"[*] normal boot: kernel plan {kernel_plan}", flush=True)
         context.apply("kernel", kernel_plan, kernel, record_name="boot-kernel")
         create_img4(
             context, kernel, ticket, staging / "Kernelcache.img4", fourcc="rkrn"
