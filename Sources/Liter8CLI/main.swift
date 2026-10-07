@@ -56,6 +56,8 @@ private func usage() -> Never {
                 kernel console to the UART and the device screen stops showing
                 the verbose boot log.
       --records-out <records.json>  write records from the same apply operation
+      --preserve-compression  apply and im4p repack: keep the shipped IM4P
+                compression instead of writing the payload back uncompressed
 
     """.utf8))
     exit(2)
@@ -66,6 +68,9 @@ struct ResolverOptions {
     var panelID: UInt32?
     var json = false
     var recordsOutput: URL?
+    /// Keep the shipped IM4P compression when re-encoding. Selected by the
+    /// workflow profile's boot plan; see FirmwareArtifact.encoded.
+    var preserveCompression = false
 }
 
 /// Keep the public CLI small while retaining descriptive internal resolver
@@ -158,6 +163,9 @@ private func parseResolverOptions(
             options.recordsOutput = URL(fileURLWithPath: arguments[valueIndex])
                 .standardizedFileURL
             index = arguments.index(after: valueIndex)
+        case "--preserve-compression" where allowRecordsOutput:
+            options.preserveCompression = true
+            index += 1
         default:
             usage()
         }
@@ -936,14 +944,19 @@ do {
             print("wrote \(outputURL.path)")
 
         case "repack":
-            guard arguments.count == 5 else { usage() }
+            guard arguments.count == 5
+                || (arguments.count == 6 && arguments[5] == "--preserve-compression")
+            else { usage() }
             let payloadURL = URL(fileURLWithPath: arguments[3]).standardizedFileURL
             let outputURL = URL(fileURLWithPath: arguments[4]).standardizedFileURL
             guard outputURL != inputURL, outputURL != payloadURL else {
                 throw PatchfinderError.invalidFirmwareContainer("output must differ from both inputs")
             }
             let payload = try Data(contentsOf: payloadURL, options: [.mappedIfSafe])
-            let output = try artifact.encoded(replacingPayloadWith: payload)
+            let output = try artifact.encoded(
+                replacingPayloadWith: payload,
+                preservingCompression: arguments.count == 6
+            )
 
             // Re-open our own result and compare the extracted payload. This
             // catches DER-length or PAYP mistakes before anything is written,
@@ -1019,7 +1032,10 @@ do {
                   options.recordsOutput == nil else { usage() }
             try artifact.requireIM4PFourCC("dtre")
             let result = try DeviceTreePatcher.patch(artifact.payload, plan: plan)
-            let output = try artifact.encoded(replacingPayloadWith: result.data)
+            let output = try artifact.encoded(
+                replacingPayloadWith: result.data,
+                preservingCompression: options.preserveCompression
+            )
             try output.write(to: outputURL, options: .atomic)
             printDeviceTreeChanges(result.changes)
             print("payload size: \(artifact.payload.count) -> \(result.data.count) (\(result.data.count - artifact.payload.count >= 0 ? "+" : "")\(result.data.count - artifact.payload.count))")
@@ -1031,7 +1047,10 @@ do {
         reportProfile(for: image, resolver: resolver)
         let records = try resolveRecords(named: resolver, in: image, options: options)
         let result = try GuardedPatchApplier.apply(records, to: image)
-        let output = try artifact.encoded(replacingPayloadWith: result.data)
+        let output = try artifact.encoded(
+            replacingPayloadWith: result.data,
+            preservingCompression: options.preserveCompression
+        )
 
         // Atomic replacement protects an existing output path from a partial
         // write. The input artifact is never modified in place.
