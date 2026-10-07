@@ -39,6 +39,12 @@ PRs welcome on any of these, especially SEP. The Pro and Pro Max are open too, i
 | iOS 27.2 beta 2 | `24B5089g` | run       | -            | -            |
 | iOS 27.2 beta 3 | `24B5099f` | run       | -            | -            |
 
+| Firmware      | Build   | iPad 8 Wi-Fi (`j171aap`) |
+| ------------- | ------- | ------------------------ |
+| iPadOS 26.7.1 | `23H30` | experimental             |
+
+The iPad 8 is an A12, not an A13. CFW restore and the SSH ramdisk work on one; normal boot isn't confirmed yet. See [the iPad 8 notes](docs/runs/IPAD8_J171AAP_23H30.md).
+
 "Run" means i did an erase restore, booted it normally, then rebooted and it came back up. "Experimental" means unverified. It resolves and you can use it with `--experimental`, but nobody has confirmed it on that phone. If you own one and are willing to try, share what happens and i'll change the tag.
 
 There's a catch with that table though. `fw restore-cfw` pulls a fresh APTicket from Apple while the restore is happening, so once Apple drops signing for a build you can't install it anymore. The row stays in the table because i did test it, but that doesn't mean you can still use it today. Check signing first.
@@ -202,6 +208,7 @@ state. The failure chains and fixes are written up in the docs.
 - [iOS 27 `24A435` resolver and device evidence](docs/plans/IOS_27_24A435_RC_PATCHES.md)
 - [iPhone 11 beta 4 device run](docs/runs/IOS_27_BETA4_IPHONE11.md)
 - [iPhone 11 `24A446` pairing and watchdog research](docs/runs/IOS_27_24A446_PAIRING_AND_WATCHDOG.md)
+- [iPad 8 `23H30` port notes](docs/runs/IPAD8_J171AAP_23H30.md)
 - [Bootstrap and provisioning status](docs/design/BOOTSTRAP_JB_STATUS.md)
 - [Normal boot handoff](docs/design/NORMAL_BOOT_HANDOFF.md)
 - [Performance backlog](docs/BACKLOG.md)
