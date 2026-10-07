@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Boot-scoped Karing app-group repair for the experimental iPad 8 port."""
+import io
+import pathlib
+import plistlib
+import subprocess
+import sys
+import tarfile
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+PAYLOAD = ROOT / 'device/vpnfix'
+
+def remote(command, data=None):
+    return subprocess.run([str(ROOT / 'tools/sshdev'), command], input=data,
+                          stdout=subprocess.PIPE, check=True).stdout
+
+def main():
+    action = sys.argv[1] if len(sys.argv) == 2 else ''
+    if action == 'status':
+        print(remote('ls -l /var/jb/.liter8-vpn /var/jb/etc/liter8-vpn/karing.token /var/jb/usr/lib/TweakInject/l8vpn.*; ps aux | grep karingService | grep -v grep || true').decode())
+    elif action == 'disable':
+        remote('rm -f /var/jb/.liter8-vpn')
+        print('Disabled for future extension launches. Disconnect VPN in Karing to end the current grant.')
+    elif action == 'apply':
+        subprocess.run(['sh', str(PAYLOAD / 'build.sh')], check=True)
+        raw = remote('tar -cf - /var/mobile/Containers/Shared/AppGroup/*/.com.apple.mobile_container_manager.metadata.plist')
+        groups = []
+        with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+            for member in archive:
+                if not member.isfile() or member.size > 65536:
+                    continue
+                metadata = plistlib.load(archive.extractfile(member))
+                if metadata.get('MCMMetadataIdentifier') == 'group.com.nebula.karing':
+                    groups.append('/private/' + str(pathlib.PurePosixPath(member.name.lstrip('/')).parent))
+        if len(groups) != 1:
+            raise RuntimeError(f'Expected one Karing app group, found {len(groups)}')
+        # The native issuer also checks the model, build, path syntax and owner.
+        remote('mkdir -p /var/jb/etc/liter8-vpn; chown root:mobile /var/jb/etc/liter8-vpn; chmod 750 /var/jb/etc/liter8-vpn')
+        remote('cat > /var/tmp/l8vpn-issue.new && chmod 755 /var/tmp/l8vpn-issue.new && mv /var/tmp/l8vpn-issue.new /var/tmp/l8vpn-issue', (PAYLOAD / 'issue').read_bytes())
+        import shlex
+        print(remote('/var/tmp/l8vpn-issue ' + shlex.quote(groups[0])).decode().strip())
+        for name, mode in [('l8vpn.dylib', '755'), ('l8vpn.plist', '644')]:
+            path = '/var/jb/usr/lib/TweakInject/' + name
+            remote(f'cat > {path}.new && chmod {mode} {path}.new && mv {path}.new {path}', (PAYLOAD / name).read_bytes())
+        remote('touch /var/jb/.liter8-vpn; chown root:wheel /var/jb/.liter8-vpn; chmod 600 /var/jb/.liter8-vpn')
+        print('Enabled. Disconnect/reconnect VPN in Karing; no device reboot needed.')
+    else:
+        raise SystemExit('usage: tools/karing-vpn apply|status|disable')
+
+if __name__ == '__main__':
+    main()
