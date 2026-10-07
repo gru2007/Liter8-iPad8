@@ -455,6 +455,32 @@ public enum DeviceWorkflowRegistry {
                 restoreIBSSAdditionalPlans: []
             )
         ),
+        // iPad 8 Wi-Fi, A12 / T8020, iPadOS 26.7.1. CFW restore and SSHRD
+        // work on hardware; normal boot is not yet proven. No SPTM/TXM in this
+        // identity. Guards measured from the 23H30 System volume. The display
+        // workaround has no candidate on this iBSS and is not carried over.
+        // See docs/runs/IPAD8_J171AAP_23H30.md.
+        DeviceWorkflowProfile(
+            id: "ipad11,6-j171aap-23H30",
+            productVersion: "26.7.1",
+            build: "23H30",
+            productType: "iPad11,6",
+            deviceClass: "j171aap",
+            chipID: 0x8020,
+            boardID: 0x24,
+            extractedDirectoryName: "iPad11,6_26.7.1_23H30_Restore",
+            validationState: .experimental,
+            launchdSHA256: "1b37dae048542729a622a1a3f4b77ec8829d32e918f0d6a0c0c037f32d9e84b1",
+            launchdCacheSHA256: "af9183685525a0833fea7a16c7a81b3f85e14372ea33d49f3e1ec6ab1a90ca4f",
+            launchdCacheDaemonCount: 672,
+            setupControllerMethodCount: 58,
+            bootPlan: DeviceBootPlan(
+                normalIBSSAdditionalPlans: [],
+                restoreIBSSAdditionalPlans: [],
+                preservesIM4PCompression: true,
+                normalBootUsesStaticTrustCache: true
+            )
+        ),
     ]
 
     /// Every profile this IPSW could be restored with.

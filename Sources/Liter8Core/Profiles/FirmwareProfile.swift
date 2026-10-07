@@ -211,6 +211,33 @@ public enum KernelResolverProfileRegistry {
                 ),
             ]
         ),
+        KernelResolverProfile(
+            // iPad 8, A12 / T8020, iPadOS 26.7.1. A different SoC and XNU
+            // major from every other profile here. The Wi-Fi and Cellular
+            // boards share this kernelcache.
+            id: "ios26-23H30-j171aap",
+            productVersion: "26.7.1",
+            builds: ["23H30"],
+            boards: ["j171aap", "j172aap"],
+            component: "kernelcache.release.ipad11b",
+            embeddedFingerprint: "xnu-12377.162.13.700.38~2/RELEASE_ARM64_T8020",
+            resolverVariants: [
+                // T8020 PPL makes its own trust decision; see
+                // KernelPPLTrustCacheResolver.
+                "kernel-ppl-trust-cache": ResolverVariantProfile(
+                    signature: "t8020-loaded-trust-cache-v1",
+                    payload: "loaded-trust-cache-true-v1"
+                ),
+                // 25 entries, not 26. See
+                // KernelCredentialManagerSignatures.release23H30V1.
+                "kernel-credential-manager": ResolverVariantProfile(
+                    signature: "ios26-23H30-acm-v1",
+                    payload: "acm-return-success-v1"
+                ),
+            ],
+            // No scoped Sandbox predecessor, so no Valeria cave. Not ported.
+            omittedResolvers: [KernelValeriaResolver.name]
+        ),
     ]
 
     /// Detect a profile using evidence embedded in the artifact itself.
