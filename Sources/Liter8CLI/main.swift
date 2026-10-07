@@ -35,8 +35,8 @@ private func usage() -> Never {
                   ibss-ramdisk, ibss-skip-display-init,
                   ibec-ignore-pinot-failure, ibec-force-pinot-id
       kernel      restore, ppl-trust-cache, boot-policy, aks, sep-silence,
-                  sep, credential-manager, sandbox, valeria, boot,
-                  boot-public, diagnostic
+                  sep, credential-manager, sandbox, sandbox-public, valeria,
+                  boot, boot-public, diagnostic
       txm         restore, boot
       userland    restored-fdr, asr, coreauthd, ctkd, mobileactivationd
       devicetree  restore, normal
@@ -97,6 +97,7 @@ let resolverGroups: [String: [String: String]] = [
         "sep": KernelSEPResolver.name,
         "credential-manager": KernelCredentialManagerResolver.name,
         "sandbox": KernelSandboxResolver.name,
+        "sandbox-public": KernelSandboxCompatibilityResolver.name,
         "valeria": KernelValeriaResolver.name,
         "boot": KernelBootResolver.name,
         // Keep the public CLI spelling stable while the Swift type describes
@@ -256,6 +257,9 @@ func resolveRecords(
     case KernelSandboxResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelSandboxResolver().resolve(in: image)
+    case KernelSandboxCompatibilityResolver.name:
+        guard options.bootArguments == nil, options.panelID == nil else { usage() }
+        return try KernelSandboxCompatibilityResolver().resolve(in: image)
     case KernelValeriaResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelValeriaResolver().resolve(in: image)
