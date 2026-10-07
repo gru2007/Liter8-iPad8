@@ -54,3 +54,8 @@ device/spawnprobe/personaalloc
 /device/vpnfix/*.build
 
 /device/filesfix/l8files.dylib
+
+/device/deviceprefs/prefs
+
+/device/appfix/icleaner-launch
+/device/appfix/newterm-login
