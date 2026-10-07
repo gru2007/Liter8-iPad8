@@ -12,11 +12,13 @@
 //   ssh root@DEVICE /var/jb/usr/bin/personainfo
 //
 // It reports:
-//   - every persona the kernel currently knows (id, type, name, uid/gid)
+//   - every persona the kernel currently knows, ids 0..4999 (id, type, name)
 //   - the calling process's persona id
-//   - whether the personal-persona id Setup normally creates (100) exists
 //   - the data-volume paths a personal persona and File Provider need
 //   - the relevant daemons present on the System volume
+//
+// The persona id Setup gives the device owner is not assumed: the scan shows
+// what exists, and the types say which persona is the personal one.
 //
 // No entitlement is required to read this; kpersona_info and the path checks
 // are available to any process.
@@ -42,14 +44,20 @@ struct kpersona_info {
 };
 
 typedef int (*info_t)(uid_t, struct kpersona_info *);
-typedef int (*self_t)(void);
+typedef int (*get_t)(uid_t *);
 
+// Persona types from XNU bsd/sys/persona.h. 1-4 are long-standing; 5-8 were
+// added later and are labelled for reading convenience only.
 static const char *tname(int t) {
     switch (t) {
         case 1: return "GUEST";
         case 2: return "MANAGED";
         case 3: return "PRIV";
         case 4: return "SYSTEM";
+        case 5: return "DEFAULT";
+        case 6: return "SYSTEM_PROXY";
+        case 7: return "SYS_EXT";
+        case 8: return "ENTERPRISE";
         default: return "?";
     }
 }
@@ -68,12 +76,10 @@ int main(void) {
     printf("=== identity ===\n");
     printf("  uid=%d euid=%d gid=%d pid=%d\n", getuid(), geteuid(), getgid(), getpid());
 
-    self_t kself = (self_t)dlsym(RTLD_DEFAULT, "kpersona_get");
-    if (kself) {
+    get_t kget = (get_t)dlsym(RTLD_DEFAULT, "kpersona_get");
+    if (kget) {
         uid_t id = 0;
-        // kpersona_get takes a uid_t* on this ABI; call defensively.
-        int (*getfn)(uid_t *) = (int (*)(uid_t *))kself;
-        if (getfn(&id) == 0) {
+        if (kget(&id) == 0) {
             printf("  current persona id = %u\n", id);
         } else {
             printf("  current persona id = (none, errno=%d %s)\n", errno, strerror(errno));
@@ -81,12 +87,12 @@ int main(void) {
     }
 
     info_t kinfo = (info_t)dlsym(RTLD_DEFAULT, "kpersona_info");
-    printf("\n=== persona table (ids 0..200) ===\n");
+    printf("\n=== persona table (ids 0..4999) ===\n");
     if (!kinfo) {
         printf("  kpersona_info unavailable\n");
     } else {
         int found = 0;
-        for (uid_t id = 0; id <= 200; id++) {
+        for (uid_t id = 0; id < 5000; id++) {
             struct kpersona_info c;
             memset(&c, 0, sizeof(c));
             c.persona_info_version = 1;
@@ -100,12 +106,6 @@ int main(void) {
         if (!found) {
             printf("  (empty: the kernel knows no personas)\n");
         }
-        // 100 is the id Setup assigns the first personal (owner) persona.
-        struct kpersona_info personal;
-        memset(&personal, 0, sizeof(personal));
-        personal.persona_info_version = 1;
-        printf("\n  personal persona (id 100): %s\n",
-               kinfo(100, &personal) == 0 ? "PRESENT" : "ABSENT");
     }
 
     printf("\n=== data-volume state a personal persona / File Provider needs ===\n");
@@ -122,7 +122,6 @@ int main(void) {
     report_path("/usr/libexec/mobiledistributiond");
     report_path("/System/Library/PrivateFrameworks/MobileInstall.framework");
     report_path("/usr/libexec/installcoordinationd");
-    report_path("/usr/libexec/fileproviderd");
 
     printf("\n[personainfo] done. Send this whole output back.\n");
     return 0;
