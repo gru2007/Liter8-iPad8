@@ -1,6 +1,5 @@
 #import <Foundation/Foundation.h>
 #include <unistd.h>
-#include <dlfcn.h>
 #include <sys/stat.h>
 int main(int argc, char **argv) {
  @autoreleasepool {
@@ -23,10 +22,14 @@ int main(int argc, char **argv) {
    if(value) CFRelease(value);
    return 0;
   }
-  void *h=dlopen("/usr/lib/libMobileGestalt.dylib",RTLD_NOW);
-  bool (*get)(CFStringRef)=h?dlsym(h,"MGGetBoolAnswer"):NULL;
-  if(!get) return 3;
-  printf("SecurityResearchDevice=%d\n",get(CFSTR("IsSecurityResearchDevice")));
-  return 0;
+  if (argc==2 && !strcmp(argv[1],"status")) {
+   if(setgid(501)||setuid(501))return 1;
+   for(NSString *key in @[@"DiscoverableMode",@"OverrideTimeLimitEveryoneMode"]){
+    CFPropertyListRef v=CFPreferencesCopyAppValue((__bridge CFStringRef)key,CFSTR("com.apple.sharingd"));
+    NSLog(@"%@=%@",key,(__bridge id)v);if(v)CFRelease(v);
+   }
+   return 0;
+  }
+  return 2;
  }
 }

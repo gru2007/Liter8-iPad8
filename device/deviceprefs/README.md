@@ -19,8 +19,9 @@ build's Apple MobileGestaltHelper. It writes the cache atomically, keeping
 mobile ownership and mode 0644. No general filesystem protection is disabled.
 
 `tools/device-preferences status` reads back the three stored settings.
-The apply command succeeded on 2026-10-07; runtime longevity of AirDrop beyond
-10 minutes and the visible SRD banner still require UI verification.
+The apply command succeeded on 2026-10-07; fresh mobile CFPreferences read-back still returned Everyone and override=1
+after more than 10 minutes. AirDrop transfer and the visible SRD banner still
+require UI verification.
 
 Restore the original files from the reported backup when needed. Use the signed
 writer (`/var/tmp/l8-deviceprefs mg-write`, input
