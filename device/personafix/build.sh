@@ -14,7 +14,7 @@ SDK="${LITER8_IOS_SDK:-$(xcrun --sdk iphoneos --show-sdk-path)}"
 
 xcrun clang -isysroot "$SDK" -arch arm64 -arch arm64e \
     -miphoneos-version-min=15.0 -O2 -Wall -Wextra personainfo.c -o personainfo
-"$LDID" -Icom.liter8.personainfo -Cadhoc personainfo
+"$LDID" -S -Icom.liter8.personainfo -Cadhoc personainfo
 codesign -d --entitlements :- personainfo 2>/dev/null | grep -q get-task-allow \
     && { echo "[!] personainfo carries get-task-allow, AMFI will kill it"; exit 1; }
 echo "[+] personainfo  $(wc -c < personainfo | tr -d ' ') bytes"
@@ -23,7 +23,7 @@ echo "[+] personainfo  $(wc -c < personainfo | tr -d ' ') bytes"
 # the same names, so the test names its own).
 if command -v clang >/dev/null 2>&1 && [ "$(uname)" = Darwin ]; then
     marker="$(mktemp -u /tmp/l8persona-marker.XXXXXX)"
-    clang -DLITER8_PERSONA_TEST -DL8_PERSONA_MARKER="\"$marker\"" \
+    xcrun clang -DLITER8_PERSONA_TEST -DL8_PERSONA_MARKER="\"$marker\"" \
         -DL8_PERSONA_OWNER="getuid()" -DL8_IDENTITY_CLASS='"L8TestAppIdentity"' \
         -DL8_USERMGMT_CLASS='"L8TestUserManagement"' \
         -DL8_PRIMARY_SYMBOL='"L8TestPrimaryPersona"' \
@@ -36,7 +36,7 @@ xcrun clang -isysroot "$SDK" -arch arm64 -arch arm64e \
     -miphoneos-version-min=15.0 -O2 -Wall -Wextra -dynamiclib \
     -Wl,-not_for_dyld_shared_cache -install_name /var/jb/usr/lib/TweakInject/l8persona.dylib \
     -framework Foundation l8persona.m -o l8persona.dylib
-"$LDID" -Icom.liter8.l8persona -Cadhoc l8persona.dylib
+"$LDID" -S -Icom.liter8.l8persona -Cadhoc l8persona.dylib
 codesign -d --entitlements :- l8persona.dylib 2>/dev/null | grep -q get-task-allow \
     && { echo "[!] l8persona carries get-task-allow, AMFI will kill it"; exit 1; }
 echo "[+] l8persona.dylib  $(wc -c < l8persona.dylib | tr -d ' ') bytes"

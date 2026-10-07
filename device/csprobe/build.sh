@@ -14,7 +14,7 @@ SDK="${LITER8_IOS_SDK:-$(xcrun --sdk iphoneos --show-sdk-path)}"
 
 xcrun clang -isysroot "$SDK" -arch arm64 -arch arm64e \
     -miphoneos-version-min=15.0 -O0 -Wall -Wextra csprobe.c -o csprobe
-"$LDID" -Icom.liter8.csprobe -Cadhoc csprobe
+"$LDID" -S -Icom.liter8.csprobe -Cadhoc csprobe
 codesign -d --entitlements :- csprobe 2>/dev/null | grep -q get-task-allow \
     && { echo "[!] csprobe carries get-task-allow, AMFI will kill it"; exit 1; }
 echo "[+] csprobe  $(wc -c < csprobe | tr -d ' ') bytes"
