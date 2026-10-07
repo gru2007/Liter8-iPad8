@@ -94,12 +94,13 @@ IPSW общий для Wi-Fi (j171aap) и Cellular (j172aap), но профил�
 
 ---
 
-## Часть 3. Проверки до устройства (обязательно)
+## Часть 3. Проверки до устройства
 
-Это главный шлюз. Патчи code signing перенесены из palera1n KPF для T8020, но
-против именно этого kernelcache ещё не запускались. Они сделаны так, что при
-несовпадении паттерна ничего не патчится (`no candidate`), но тогда `get-boot`
-остановится, пока это не исправить.
+Патчи code signing перенесены из palera1n KPF для T8020. На стоковом
+kernelcache 23H30 каждый находит ровно одно место, а `boot-jit` даёт 123 записи
+(118 из `boot-public` плюс пять). При несовпадении паттерна ничего не
+патчится (`no candidate`), но тогда `get-boot` остановится, пока это не
+исправить.
 
 ### 3.1. Патчи ядра против твоего kernelcache
 
@@ -127,15 +128,13 @@ $B inspect kc.raw strings pmap_create
 $B inspect kc.raw dis <смещение> 80
 ```
 
-**Пришли мне вывод всех пяти `resolve`.** Если всё совпало, закрепим это
-фикстурой:
+Точные байты закреплены фикстурой
+`fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json` (рядом с
+`kernel-boot-public`). Сверить свой kernelcache:
 
 ```sh
-$B fixture kernel boot-jit kc.raw fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json \
-    --device "iPad 8 (Wi-Fi)" --board j171aap --build 23H30 --component-name kernelcache
+$B verify fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json kc.raw
 ```
-
-JSON тоже пришли — добавлю в тесты рядом с `kernel-boot-public`.
 
 ### 3.2. Место в заголовках демонов (иначе provisioning остановится)
 
@@ -336,19 +335,49 @@ idevicesyslog | grep -iE "LocalAuthentication|ACM|distribution|install|persona|u
 Если ошибки пароля больше нет, а установка всё равно не идёт, упираемся в
 persona (7.6).
 
-### 7.6. Persona и «На iPad»
+### 7.6. Persona: установка из альтернативных магазинов
+
+Без SEP usermanagerd не создаёт personal persona, поэтому разрешение persona
+при установке падает, и installcoordinationd пишет `Client provided invalid
+persona for <bundle> : <причина>`. `l8persona` — твик для `installd` и
+`installcoordinationd`: если штатное разрешение упало и personal persona нет,
+он берёт ветку, которую MobileInstallation использует на Shared iPad
+(`CONTAINER_PERSONA_PRIMARY`). Это обход только для установки: «На iPad» в
+«Файлах» он не чинит. Примет ли containermanagerd такую persona не на Shared
+iPad, на железе ещё не проверено; если нет, ошибка останется прежней.
 
 ```sh
-# на Mac
+# на Mac (собирает personainfo и l8persona, заодно прогоняет self-test)
 sh device/personafix/build.sh
+scp device/personafix/l8persona.dylib device/personafix/l8persona.plist \
+    root@IPAD:/var/jb/usr/lib/TweakInject/
 scp device/personafix/personainfo root@IPAD:/var/jb/usr/bin/
-# на iPad
-/var/jb/usr/bin/personainfo
+
+# на iPad: включить (маркер должен принадлежать root; удалить = выключить)
+touch /private/var/jb/.liter8-persona
+chmod 600 /private/var/jb/.liter8-persona
+killall -9 installd installcoordinationd 2>/dev/null   # launchd перезапустит их с твиком
 ```
 
-Только читает, ничего не меняет. **Пришли весь вывод** — по нему сделаю
-исправление persona/сессии. Писать его вслепую и запускать при загрузке
-нельзя: ошибка там = незагружаемый iPad.
+Повтори установку и сними лог:
+
+```sh
+idevicesyslog | grep -iE "l8persona|persona|installcoordination|installd"
+```
+
+`l8persona: installed in pid N` — твик загрузился; `resolved ... to
+com.apple.containermanager.primary-persona` — сработал обход.
+
+Состояние persona (только читает):
+
+```sh
+/var/jb/usr/bin/personainfo
+cat /var/logs/usermanagerd_init.log /var/logs/usermanagerd.log
+ls -la /private/var/keybags/
+```
+
+Вывод этих трёх команд нужен для настоящего исправления persona в
+usermanagerd.
 
 ---
 
@@ -359,14 +388,14 @@ scp device/personafix/personainfo root@IPAD:/var/jb/usr/bin/
 | Патчи code signing | `fw get-boot --experimental --no-tweaks`, затем `fw boot` |
 | Инъекцию твиков | `rm /var/jb/.lhook_enabled` |
 | Фикс пароля | `rm /private/var/jb/.liter8-localauth` |
+| Обход persona при установке | `rm /private/var/jb/.liter8-persona` |
 | Лог инъекции | `rm /var/jb/.lhook_debug` |
 
 ---
 
 ## Что прислать мне
 
-1. Вывод пяти `resolve` из части 3.1 (и JSON фикстуры, если всё совпало).
-2. Вывод трёх проверок заголовков из части 3.2.
-3. Вывод `csprobe` и строки `idevicesyslog` (часть 7.2).
-4. Лог попытки установки магазина (часть 7.5).
-5. Вывод `personainfo` (часть 7.6).
+1. Вывод трёх проверок заголовков из части 3.2.
+2. Вывод `csprobe` и строки `idevicesyslog` (часть 7.2).
+3. Лог попытки установки магазина (часть 7.5).
+4. Лог установки с `l8persona`, вывод `personainfo` и логи usermanagerd (часть 7.6).

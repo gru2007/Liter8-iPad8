@@ -34,5 +34,10 @@ device/pairingfix/l8pair.dylib
 device/coreauthfix/l8coreauth.dylib
 # Built by device/remotexpcfix/build.sh, reproduced from source each run.
 device/remotexpcfix/l8remotepairing.dylib
+# Built by the iPad 8 diagnostic and tweak build scripts, reproduced from source.
+device/csprobe/csprobe
+device/localauthfix/l8localauth.dylib
+device/personafix/personainfo
+device/personafix/l8persona.dylib
 # Host-built/downloaded device payloads; always reproduced by fetch_payloads.sh.
 device/payload/
