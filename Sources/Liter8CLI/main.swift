@@ -34,9 +34,9 @@ private func usage() -> Never {
       iboot       ibss-validate, ibss-bootargs, ibss-normal, ibss-restore, ibec-restore,
                   ibss-ramdisk, ibss-skip-display-init,
                   ibec-ignore-pinot-failure, ibec-force-pinot-id
-      kernel      restore, boot-policy, aks, sep-silence, sep,
-                  credential-manager, sandbox, valeria, boot, boot-public,
-                  diagnostic
+      kernel      restore, ppl-trust-cache, boot-policy, aks, sep-silence,
+                  sep, credential-manager, sandbox, valeria, boot,
+                  boot-public, diagnostic
       txm         restore, boot
       userland    restored-fdr, asr, coreauthd, ctkd, mobileactivationd
       devicetree  restore, normal
@@ -90,6 +90,7 @@ let resolverGroups: [String: [String: String]] = [
     ],
     "kernel": [
         "restore": KernelRestoreResolver.name,
+        "ppl-trust-cache": KernelPPLTrustCacheResolver.name,
         "boot-policy": KernelBootPolicyResolver.name,
         "aks": KernelAKSResolver.name,
         "sep-silence": KernelSEPSilenceResolver.name,
@@ -234,6 +235,9 @@ func resolveRecords(
     case KernelRestoreResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelRestoreResolver().resolve(in: image)
+    case KernelPPLTrustCacheResolver.name:
+        guard options.bootArguments == nil, options.panelID == nil else { usage() }
+        return try KernelPPLTrustCacheResolver().resolve(in: image)
     case KernelBootPolicyResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelBootPolicyResolver().resolve(in: image)
