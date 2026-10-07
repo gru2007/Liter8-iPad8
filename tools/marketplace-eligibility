@@ -1,0 +1,5 @@
+#!/bin/sh
+# Reversible eligibility-cache protection for the tested Liter8 iPad.
+set -eu
+TASK_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+exec python3 "$TASK_ROOT/device/marketplacefix/persist.py" "$@"
