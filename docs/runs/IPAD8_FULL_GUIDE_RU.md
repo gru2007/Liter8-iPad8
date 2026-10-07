@@ -343,8 +343,10 @@ persona for <bundle> : <причина>`. `l8persona` — твик для `insta
 `installcoordinationd`: если штатное разрешение упало и personal persona нет,
 он берёт ветку, которую MobileInstallation использует на Shared iPad
 (`CONTAINER_PERSONA_PRIMARY`). Это обход только для установки: «На iPad» в
-«Файлах» он не чинит. Примет ли containermanagerd такую persona не на Shared
-iPad, на железе ещё не проверено; если нет, ошибка останется прежней.
+«Файлах» он не чинит. 7 октября 2026 года на iPad11,6 / 23H30
+подтверждена установка AltStore Marketplace после включения этого обхода,
+`l8localauth` и изменения eligibility. Это проверка конкретной установки,
+а не подтверждение совместимости всех приложений.
 
 ```sh
 # на Mac (собирает personainfo и l8persona, заодно прогоняет self-test)
@@ -367,6 +369,24 @@ idevicesyslog | grep -iE "l8persona|persona|installcoordination|installd"
 
 `l8persona: installed in pid N` — твик загрузился; `resolved ... to
 com.apple.containermanager.primary-persona` — сработал обход.
+
+Повторяемый сценарий для проверенной сборки:
+
+```sh
+# На Mac, из корня репозитория. iPad запущен, USB SSH доступен на localhost:2222.
+export LITER8_IOS_SDK="$HOME/theos/sdks/iPhoneOS16.5.sdk"
+python3 device/marketplacefix/repair.py apply
+```
+
+Сценарий собирает твики из исходников, сохраняет исходный eligibility и прежние
+твики/маркеры, меняет семь проверенных ответов eligibility и перезапускает только
+службы установки и Marketplace. В `l8persona` успешный обход также очищает
+`NSError`: предыдущая ошибка не должна остаться после успешного разрешения.
+После команды повтори установку с сайта и подтверди её в системном окне.
+
+Подробности и откат: [Marketplace repair](../../device/marketplacefix/README.md).
+`repair.py restore /var/jb/var/backups/marketplace-ДАТА-ВРЕМЯ` восстанавливает
+состояние из каталога, напечатанного при применении. Перезагрузка не требуется.
 
 Состояние persona (только читает):
 

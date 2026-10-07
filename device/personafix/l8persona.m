@@ -17,9 +17,9 @@
  * installcoordinationd subclass) calls super, so one hook covers both daemons.
  *
  * This is an install-path workaround, not a persona fix: Files' "On My iPad"
- * and anything else that needs a real personal persona is unaffected. Whether
- * containermanagerd accepts the primary persona outside Shared iPad is not
- * confirmed on hardware yet; the failure mode is the original install error.
+ * and anything else that needs a real personal persona is unaffected. AltStore Marketplace installation with this fallback, l8localauth and the
+ * disk eligibility edit was confirmed on iPad11,6 / 23H30 on 2026-10-07.
+ * Other stores/builds and full persona-dependent services remain unverified.
  *
  * Scope and safety:
  *   - Dormant unless the root-owned marker /var/jb/.liter8-persona exists, so
@@ -106,6 +106,7 @@ static BOOL l8_resolve(id self, SEL sel, NSError **error) {
     }
     ((void (*)(id, SEL, id))objc_msgSend)(self, setPersona, persona);
     ((void (*)(id, SEL, BOOL))objc_msgSend)(self, setResolved, YES);
+    if (error) *error = nil;
     os_log_error(OS_LOG_DEFAULT, "l8persona: no personal persona, resolved %{public}@ to %{public}@ "
                  "(was: %{public}@)", [self description], persona, native.localizedDescription);
     return YES;
@@ -210,7 +211,8 @@ int main(void) {
         if ([identity resolvePersonaWithError:&error] || identity.isResolved) return 3;
         // No personal persona: falls back to the primary container persona.
         gPrimary = nil;
-        error = nil;
+        // A successful fallback must clear an error left by an earlier call.
+        error = [NSError errorWithDomain:@"stale" code:1 userInfo:nil];
         if (![identity resolvePersonaWithError:&error] || error != nil) return 4;
         if (!identity.isResolved || ![identity.personaUniqueString isEqualToString:@"TestPrimaryPersona"]) return 5;
         [[NSFileManager defaultManager] removeItemAtPath:marker error:nil];

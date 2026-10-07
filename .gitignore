@@ -41,3 +41,7 @@ device/personafix/personainfo
 device/personafix/l8persona.dylib
 # Host-built/downloaded device payloads; always reproduced by fetch_payloads.sh.
 device/payload/
+# Explicit Marketplace repair helper; device data/backups never enter Git.
+device/marketplacefix/eligibility
+device/spawnprobe/personaalloc
+.liter8-ipad8-23H30/
