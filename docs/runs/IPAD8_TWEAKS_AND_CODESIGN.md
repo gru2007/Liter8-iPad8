@@ -1,9 +1,8 @@
 # iPad 8 (23H30) — tweaks, code signing, passcode, personas
 
 Status: experimental. The kernel code-signing-invalid patches, the `boot-jit`
-plan and the `csprobe`/`personainfo` diagnostics exist and build, but none of
-them is confirmed against the real `23H30` kernelcache or on hardware yet. This
-is the end-to-end test path, from a host build to a booted system with working
+plan and the `csprobe`/`personainfo` diagnostics exist and build. Nothing here
+is confirmed on hardware yet. This is the end-to-end test path, from a host build to a booted system with working
 tweaks, plus exactly what to send back at each point that still needs device
 data.
 
@@ -25,12 +24,12 @@ $B profiles | grep -A3 ios26-23H30-j171aap
 # expect a kernel-codesign-invalid line
 ```
 
-## 1. Confirm the kernel patches against your kernelcache (host-side, no device)
+## 1. The kernel patches against your kernelcache (host-side, no device)
 
-This is the gate. The three resolvers are ported from palera1n's T8020 KPF but
-have never run against `23H30`. They are written to fail safe: if a pattern does
-not match, `resolve` reports `no candidate` and nothing is patched. **Do this
-before any device step and send me the output.**
+The three resolvers are ported from palera1n's T8020 KPF. Each matches exactly
+one site in the stock `23H30` kernelcache, and `boot-jit` gives 123 records
+(`boot-public`'s 118 plus five). They are written to fail safe: if a pattern
+does not match, `resolve` reports `no candidate` and nothing is patched.
 
 ```sh
 $B im4p extract /path/to/BuildManifest/kernelcache.release.ipad11b kc.raw
@@ -56,17 +55,15 @@ Three outcomes per resolver:
 `get-boot` on the iPad stops until it is fixed. Until then, boot with
 `get-boot --no-tweaks` (ObjC-only tweaks can still be tested that way).
 
-## 2. Pin them with an exact-build fixture
+## 2. Exact-build fixture
 
-Once they resolve, bind the exact bytes so a later accidental change is caught:
+The exact bytes are pinned in
+`fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json`, next to the
+`kernel-boot-public` oracle. To check your kernelcache against it:
 
 ```sh
-$B fixture kernel boot-jit kc.raw fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json \
-    --device "iPad 8 (Wi-Fi)" --board j171aap --build 23H30 --component-name kernelcache
+$B verify fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json kc.raw
 ```
-
-Send me that JSON; I will add it to the fixture tests next to the existing
-`kernel-boot-public` oracle.
 
 ## 3. Full device flow
 
@@ -233,8 +230,8 @@ this state risks an unbootable device, so it waits for the dump.
 | lhook scoped-extension injection + early-boot guards | done |
 | `l8localauth` passcode fix + self-test | done (source) |
 | `csprobe`, `personainfo`, `l8localauth` build | source done; build needs the iOS SDK |
-| Resolvers match real 23H30 kernelcache | **pending your step 1 output** |
-| Exact-build fixture | **pending step 2** |
+| Resolvers match real 23H30 kernelcache | done (one site each, 123 records) |
+| Exact-build fixture | done (`kernel-boot-jit-j171aap-23H30.json`) |
 | csprobe PASS on device | **pending step 4** |
 | l8localauth confirmed on device | **pending a store-install attempt** |
 | Persona fix | **pending step 7 dump** |

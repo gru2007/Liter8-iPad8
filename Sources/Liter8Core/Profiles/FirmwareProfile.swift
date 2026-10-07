@@ -236,8 +236,8 @@ public enum KernelResolverProfileRegistry {
                 ),
                 // Opt-in: include the code-signing-invalid patches in the
                 // kernel-boot-jit plan so runtime tweak hooks are not killed.
-                // Experimental; confirm each resolver against this kernel
-                // before relying on it. See KernelCodeSigningResolver.
+                // Each resolves to one site on the 23H30 kernelcache. See
+                // KernelCodeSigningResolver.
                 "kernel-codesign-invalid": ResolverVariantProfile(
                     signature: "t8020-codesign-invalid-v1",
                     payload: "codesign-invalid-allow-v1"
