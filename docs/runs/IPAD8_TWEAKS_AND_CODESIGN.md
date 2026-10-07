@@ -161,46 +161,45 @@ cat /var/jb/tmp/lhook.log | tail -50  # did TweakLoader reach the process?
 Test one ObjC-only tweak and one that hooks a C function. If the C-function one
 now works where it used to crash, the code-signing patches did their job.
 
-Known `lhook` limitation, not yet fixed in this branch: injecting into
-app-sandboxed processes still needs the process to be able to read
-`/var/jb/usr/lib/TweakInject`. Your local `lhook.c` rework (sandbox-extension
-flow) is the right direction but is missing an early-boot fast path and still
-references the reverted `Liter8SpawnBridge`. Push that diff to a branch and I
-will finish it against this tree — I cannot apply it blind.
+`lhook` now does the scoped-extension injection: dyld inserts only the
+System-volume `lhook`, the parent mints a `/private/var/jb` read extension for an
+injected child, and the child consumes it before `dlopen`-ing TweakLoader, so a
+sandboxed app can read the rootless `TweakInject` directory. The early-boot fast
+path (no allocation, never fail a PID 1 spawn) and the removal of the reverted
+`Liter8SpawnBridge` reference are in. It builds only with the iOS SDK.
 
-## 6. Passcode prompts (needed for alt-store confirmations)
+## 6. Passcode prompts (alt-store confirmations)
 
-Every prompt that asks for the passcode to confirm something returns "cancelled"
-because, with no SEP, ACM rejects the check before the sheet appears. Upstream
-already fixed this for one case (Trust this computer) inside `lockdownd`. The
-general fix belongs in `coreauthd`, which every LocalAuthentication request goes
-through and which Liter8 already weak-loads `l8coreauth.dylib` into.
+Every "enter passcode to confirm" prompt returned "cancelled" because, with no
+SEP, ACM rejects the check with `-3` before the sheet appears and the app sees
+`com.apple.LocalAuthentication/-1000`. The blocker is known: the marketplace
+prompt is `LAPolicyOslo` (policy 1005), failing with
+`ACM verification of Oslo on ACMContext 0 failed: -3`.
 
-I can write that hook, but not blind. **Collect this and send it back:**
-
-```sh
-# on the Mac, while you trigger 2-3 different passcode prompts on the device:
-idevicesyslog | grep -iE "coreauthd|LocalAuthentication|LAContext|ACM|policy|-100"
-```
-
-Note which action triggered each prompt. I need the `policy:` number, the
-`failed: N` / `-100x` codes, and the process that asked. Also, from the mounted
-`23H30` System volume, a class dump of `coreauthd` and `LocalAuthenticationCore`:
+`l8localauth.dylib` handles this generally. It swizzles `LAContext` and, only
+for that exact ACM `-3` / LA `-1000` signature, reports `LAErrorPasscodeNotSet`
+so the UI takes its no-passcode branch. It matches the signature, not a policy
+number, so it covers Oslo (store install), Trust-computer (1028) and the rest at
+once. It is marker-gated and changes no code pages, so it does not depend on the
+kernel patches.
 
 ```sh
-ipsw class-dump /path/to/mounted/System/.../Support/coreauthd > coreauthd.txt
+sh device/localauthfix/build.sh          # also runs the self-test on a Mac
+# install it under the bootstrap so lhook injects it process-wide, e.g.:
+scp device/localauthfix/l8localauth.dylib root@DEVICE:/var/jb/usr/lib/
+# arm it (root-owned marker; remove to disable):
+ssh root@DEVICE 'touch /private/var/jb/.liter8-localauth && chmod 600 /private/var/jb/.liter8-localauth'
 ```
 
-Before that hook can deploy, confirm `coreauthd` has header room for the weak
-load (launchd on 23H30 did not — that is why the hook path became
-`/usr/lib/lhook`):
+It must be loaded into the process that shows the prompt (the store's
+`AppDistributionLaunchAngel`, Settings, lockdownd, ...), which lhook injection
+delivers once tweaks are enabled. For a daemon that is not injected, weak-load it
+the way `l8coreauth` is wired in provisioning.
 
-```sh
-python3 device/launchdhook/patch_launchd.py \
-  /path/to/mounted/System/.../Support/coreauthd --path /usr/lib/l8coreauth.dylib
-```
-
-If it reports "needs N bytes, only M available", I will shorten the path.
+If, after this, a store install still fails without a passcode error, the
+remaining blocker is the persona/session state in section 7, not passcode.
+Send the `idevicesyslog` around the attempt (`grep -iE
+"LocalAuthentication|ACM|distribution|install"`) so we can tell which it is.
 
 ## 7. Personas / "On My iPad" / alternative app stores
 
@@ -230,10 +229,11 @@ this state risks an unbootable device, so it waits for the dump.
 | --- | --- |
 | Kernel resolvers build + unit tests | done (synthetic images) |
 | `boot-jit` plan, `--tweaks` flag | done |
-| `csprobe`, `personainfo` build | source done; build needs the iOS SDK |
+| lhook scoped-extension injection + early-boot guards | done |
+| `l8localauth` passcode fix + self-test | done (source) |
+| `csprobe`, `personainfo`, `l8localauth` build | source done; build needs the iOS SDK |
 | Resolvers match real 23H30 kernelcache | **pending your step 1 output** |
 | Exact-build fixture | **pending step 2** |
 | csprobe PASS on device | **pending step 4** |
-| Passcode hook | **pending step 6 data** |
+| l8localauth confirmed on device | **pending a store-install attempt** |
 | Persona fix | **pending step 7 dump** |
-| lhook sandbox-extension rework | **pending your diff on a branch** |
