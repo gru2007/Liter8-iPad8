@@ -31,7 +31,7 @@ int main(int argc,char **argv){
  if(!r)r=persona(&attr,99,1);
  if(!r)r=uid(&attr,0);
  if(!r)r=gid(&attr,0);
- char *args[9]={"/var/jb/usr/bin/login","--liter8-root-stage",argv[1],"root",argv[3],"/var/jb/var/root",argv[5],NULL};
+ char *args[9]={"/var/jb/usr/bin/login","--liter8-root-stage",argv[1],"root",argv[3],"/var/root",argv[5],NULL};
  pid_t child=0;if(!r)r=posix_spawn(&child,args[0],NULL,&attr,args,environ);
  if(r){os_log_error(OS_LOG_DEFAULT,"l8login: spawn failed=%d",r);return 1;}
  os_log_error(OS_LOG_DEFAULT,"l8login: root terminal login child=%d",child);

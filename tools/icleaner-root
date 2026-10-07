@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""Prepare the native iCleaner launch hook; never restart system services."""
+import argparse,pathlib,subprocess,shlex
+ROOT=pathlib.Path(__file__).resolve().parents[1]
+def ssh(command,data=None):
+ return subprocess.run([str(ROOT/'tools/sshdev'),command],input=data,stdout=subprocess.PIPE,check=True).stdout
+def clear_app_job():
+ out=ssh('/var/tmp/liter8-launchctl list').decode()
+ for line in out.splitlines():
+  fields=line.split()
+  if fields and fields[-1].startswith('UIKitApplication:com.ivanobilenchi.icleaner['):
+   subprocess.run([str(ROOT/'tools/sshdev'),'/var/tmp/liter8-launchctl bootout '+shlex.quote('user/501/'+fields[-1])],check=True,stdout=subprocess.PIPE)
+p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['prepare','enable','disable','status']);a=p.parse_args()
+if ssh('sysctl -n hw.machine').strip()!=b'iPad11,6' or ssh('sysctl -n kern.osversion').strip()!=b'23H30':raise SystemExit('Unsupported device/build')
+if a.action=='prepare':
+ subprocess.run([str(ROOT/'device/rootappfix/build.sh')],check=True)
+ for name in ['l8rootapps.dylib','l8rootapps.plist']:
+  target='/var/jb/usr/lib/TweakInject/'+name;temp=target+'.new'
+  ssh('cat > '+shlex.quote(temp),(ROOT/'device/rootappfix'/name).read_bytes())
+  ssh('chown root:wheel '+shlex.quote(temp)+' && chmod 644 '+shlex.quote(temp)+' && mv '+shlex.quote(temp)+' '+shlex.quote(target))
+ print('Prepared. No service restarted and no enable marker created. The existing daemon still needs to load it.')
+elif a.action=='enable':
+ ssh('umask 077; : > /var/jb/.liter8-rootapps; chown root:wheel /var/jb/.liter8-rootapps; chmod 600 /var/jb/.liter8-rootapps')
+ clear_app_job()
+ print('Marker enabled. The hook must load in runningboardd before this can change app launches; no restart performed.')
+elif a.action=='disable':
+ ssh('rm -f /var/jb/.liter8-rootapps');clear_app_job();print('Disabled. Only iCleaner application jobs removed; no daemon restarted.')
+print(ssh('if test -f /var/jb/.liter8-rootapps; then echo marker=enabled; else echo marker=disabled; fi').decode().strip())

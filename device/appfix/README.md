@@ -1,68 +1,49 @@
-# NewTerm / iCleaner / Sileo launch compatibility on iPad11,6 23H30
+# NewTerm and Sileo compatibility on iPad11,6 / 23H30
 
-Apply: `tools/app-launch apply`
-Inspect: `tools/app-launch status`
-Restore: `tools/app-launch restore`
+`tools/app-launch apply` builds and installs the NewTerm adapters and signs and
+registers Sileo. `restore` reinstates the original backups, `status` lists them.
+There is no automatic reboot, respring, or kernel write.
 
-No reboot, respring, kernel credential write or daemon is used. Original signed
-binaries remain beside each adapter as `.liter8-real`, with their original mode
-and ownership. Reapplying does not overwrite these backups. Package upgrades
-may replace the adapters; remove/refresh the backups before applying to a new
-package version. These adapters were tested with NewTerm 3 beta1 and iCleaner
-Pro 7.10.0 only, on the experimental Liter8 build above.
+## NewTerm
 
-## Cause and launch path
+Data is mounted nosuid, so ordinary login did not gain root. Its PAM session
+accounting failed with `Unable to write the utmp record`. The adapter accepts only
+NewTerm's exact forced mobile login invocation, spawns through existing persona
+99 with uid/gid 0, normalizes the stage's credentials, then runs original login
+as root at the device owner's request. Other login invocations pass through.
+Original binaries remain as `.liter8-real` backups.
 
-App launches arrive with uid/euid 501. The installed setuid binaries do not gain
-root automatically on this boot. iCleaner therefore exits at its real
-`setuid(0)`/uid checks. NewTerm's login fails in PAM session accounting with
-`Unable to write the utmp record` followed by `pam_open_session(): System error`.
-Making PAM modules optional did not fix this, and those experimental PAM edits
-were restored. Authentication configuration is unchanged.
+NewTermLoginHelper then establishes its controlling tty and explicitly sets the
+actual root home `/var/root`, ZDOTDIR and CFFIXED_USER_HOME to that same path,
+root USER/LOGNAME, the rootless `/var/jb` PATH, SHELL and TMPDIR. It loads the
+existing zsh setup in `/var/root`. `/var/jb/var/root` was empty and gave the owner
+an unfamiliar environment in the earlier version. The root account's global
+passwd entry is unchanged. htop 3.3.0 was also installed on the device; it was
+previously absent. Root shell process and rootless command paths were verified.
 
-Both adapters use existing kernel persona 99, with uid/gid 0 and override flag
-1. A separate spawned stage normalizes real credentials before executing the
-original binary. Persona plus POSIX_SPAWN_SETEXEC returned ENOTSUP on this
-kernel, so a separate stage is spawned. iCleaner's parent must enter UIApplicationMain
-and complete application launch while a watcher waits for the child. The earlier
-blocking wait in main caused a process-launch watchdog kill after 20 seconds.
+## Sileo
 
-- iCleaner: fixed original app path only, GUI launch only. The root child opens
-  the existing iCleaner app; no cleanup is automatically requested. Root/CLI
-  invocations pass straight through to the original binary.
-- NewTerm: only the exact six-argument forced **mobile** login from the app's
-  NewTermLoginHelper path uses persona. All other login commands pass through.
-  By the owner's explicit request, the stage now changes the login user to root
-  and the initial directory to /var/jb/var/root. Original login starts a root
-  terminal. Other invocations of login still pass through unchanged.
+The installed signature had get-task-allow and many unsupported task/launchd
+privileges. Spawn failed with code 153. Apply preserves the original Keychain
+access groups and signs with the repo's tested six-entitlement persona/spawn
+set, then registers only Sileo.app. Subsequent launch succeeded and stayed alive.
+Its original binary is backed up as Sileo.liter8-before; package data is unchanged.
 
-Both accepted /var/jb and /private/var/jb paths are handled for NewTerm.
-Entitlements use the repo's existing AMFI-tested persona/spawn set; get-task-allow
-is deliberately absent.
+## iCleaner: native launch replaces the failed proxy
 
-## Verified on 2026-10-07
+The former parent/child launch adapter did not present the real application's
+window. A parent wait caused a 20-second launch watchdog kill; giving that parent
+UIApplicationMain prevented the kill but showed an empty black window. Owner
+confirmed the failure. Process survival was insufficient UI verification.
 
-- iCleaner root stage had uid/euid 0. Both its parent and original UIKit child
-  stayed alive past the former 20-second watchdog limit (over two minutes),
-  without a new crash report. No cleaning was performed. UI confirmation remains
-  pending.
-- NewTerm: original login spawned NewTermLoginHelper, which exec'd zsh; `ps`
-  confirmed a live root `-zsh` attached to terminal s002. UI/input confirmation
-  remains pending.
-- The installed payloads were subsequently rebuilt with guards and EINTR-safe
-  waits through `tools/app-launch apply`.
+Apply now restores iCleaner's original binary when the `.liter8-real` backup
+exists; it no longer installs that failed adapter. The source is retained solely
+as evidence of the failed attempt and is excluded from build.sh. Its original
+setuid path alone still fails under nosuid. Attempts to remount Data with suid did not
+remove nosuid; the original nodev,nosuid flags were restored.
 
-## Sileo signature and registration
-
-Sileo launch failed with launchd spawn error 153. Its installed signature claimed
-get-task-allow and dozens of kernel/task/launchd privileges unsupported on this
-experimental build. Apply backs up Sileo as Sileo.liter8-before and signs it with
-the same tested six-entitlement set used by the launch adapters, preserving its
-original Keychain access groups. Then uicache registers only Sileo.app. The next
-launch succeeded and Sileo remained alive. Icon appearance and app UI still need
-owner confirmation. Restore reinstates Sileo's original signature and registers
-it again. No repository list or package data is deleted.
-
-This is a compatibility adapter, not a universal fix for all setuid applications.
-Tab termination, background lifecycle, and cleanup operations are not yet
-verified. Restoring binaries takes effect on the next app/login launch.
+The separate `device/rootappfix` tweak now launches the actual app as root
+through RunningBoard, preserving its scene identity. The owner approved the
+required runningboardd restart; native uid 0 launch was verified without a reboot
+or change of SpringBoard PID. Visible UI confirmation is still pending. See
+that tweak's README and `tools/icleaner-root` for deployment and rollback.
