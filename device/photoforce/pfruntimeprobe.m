@@ -86,7 +86,14 @@ static BOOL resolve_poster_globals(PFValuesFn function, uintptr_t *once,
         if (load_register == page_register && once_count < 8) {
             once_candidates[once_count++] = target;
         }
-        if (load_register == 0 && object_count < 8) {
+        // 23H30 preserves the object in a callee-saved register across an
+        // ARC call before moving it into x0. Validate that complete data flow
+        // rather than assuming every build loads the result directly into x0.
+        BOOL arc_saved_result = load_register >= 19 && load_register <= 28 &&
+            index + 3 < 32 &&
+            (words[index + 2] & 0xFC000000U) == 0x94000000U &&
+            words[index + 3] == (0xAA0003E0U | (load_register << 16));
+        if ((load_register == 0 || arc_saved_result) && object_count < 8) {
             object_candidates[object_count++] = target;
         }
     }
