@@ -78,9 +78,22 @@ public struct KernelBootJITResolver: Sendable {
     public init() {}
 
     public func resolve(in image: BinaryImage) throws -> [PatchRecord] {
-        try KernelBootCompatibilityResolver().resolve(in: image)
+        let taskAccess = try KernelTaskAccessResolver.requiredRecords(in: image)
+        var base = try KernelBootCompatibilityResolver().resolve(in: image)
             + KernelCodeSigningResolver.requiredRecords(in: image)
-            + KernelTaskAccessResolver.requiredRecords(in: image)
+        if !taskAccess.isEmpty {
+            // Same-length version tag lets uname prove that this diagnostic
+            // plan was actually booted, rather than a stale release artifact.
+            base = base.map { record in
+                guard record.id.hasPrefix("kernel.identity.") else { return record }
+                return PatchRecord(id: record.id, component: record.component,
+                    offset: record.offset, originalBytes: record.originalBytes,
+                    replacementBytes: Data("/TASKACC_ARM64_T8020".utf8),
+                    summary: "Identify the experimental task-access boot in uname",
+                    evidence: record.evidence + ["task-access records included in this boot plan"])
+            }
+        }
+        return base + taskAccess
     }
 }
 

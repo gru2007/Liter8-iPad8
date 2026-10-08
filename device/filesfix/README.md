@@ -11,7 +11,7 @@ tools/files-local disable
 
 The Mac wrapper builds/signs the tweak, installs it through localhost:2222,
 and restarts only FileProvider. It needs the existing ElleKit injection and
-`/var/tmp/liter8-launchctl` helper. No device reboot or SpringBoard restart.
+`/var/jb/usr/bin/launchctl` compatible utility. No device reboot or SpringBoard restart.
 Apply watches the daemon and disables the marker if it repeatedly exits.
 Disable restores stock behavior without deleting documents. Reopen Files
 following either change. Both wrapper and payload reject other model/builds.

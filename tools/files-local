@@ -14,7 +14,7 @@ def guard():
     if remote('sysctl -n hw.machine kern.osversion').splitlines() != ['iPad11,6','23H30']:
         raise RuntimeError('Only iPad11,6 / 23H30 is supported')
 
-RELOAD = '/var/tmp/liter8-launchctl kickstart -k user/501/com.apple.FileProvider'
+RELOAD = '/var/jb/usr/bin/launchctl kickstart -k user/501/com.apple.FileProvider'
 
 def main():
     action = sys.argv[1] if len(sys.argv)==2 else ''
@@ -27,7 +27,7 @@ def main():
         remote('rm -f /var/jb/.liter8-files; '+RELOAD)
         print('Local Files compatibility disabled. No document data removed.')
     else:
-        if remote('test -x /var/tmp/liter8-launchctl && echo yes').strip() != 'yes':
+        if remote('test -x /var/jb/usr/bin/launchctl && echo yes').strip() != 'yes':
             raise RuntimeError('The existing Liter8 launchctl helper is required')
         subprocess.run(['sh',str(ROOT/'device/filesfix/build.sh')],check=True)
         for name,mode in [('l8files.dylib','755'),('l8files.plist','644')]:

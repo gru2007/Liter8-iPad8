@@ -38,7 +38,7 @@ ZST_SHA=8354c3aa1ecdad8ebc47d9a76dfca6f830a2b757278068bd33b98bf1d638a9cb
 # _launch_active_user_switch strongly and Apple removed that routine. See
 # launchctl/README.md for the reversing notes and what this replacement changes.
 LAUNCHCTL=launchctl/launchctl
-LAUNCHCTL_SHA=c46e143151f4d56fd9e3c088d74e231f4b6f4ff7477aad080359454821ec0125
+LAUNCHCTL_SHA=9d0f0180b42dec8cd112b11cc08ca41d9111616dbb5499e5e515d611d5e5e78b
 STAGE=${TMPDIR:-/tmp}/bootstrap-stage-$$
 TGZ=$STAGE/bootstrap.tar.gz
 # Prefer a native sshpass. The bundled one is x86_64, so it needs Rosetta

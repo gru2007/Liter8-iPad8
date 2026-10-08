@@ -105,3 +105,33 @@ tools/sshdev '/var/jb/usr/bin/taskprobe; /var/jb/usr/bin/taskprobe --mobile'
 Both runs must print PASS before calling foreign-task decryption supported.
 Swift XCTest requires an Xcode XCTest runtime on this host; command-line
 fixture and rejection checks can run with the installed Command Line Tools.
+
+## Follow-up after session guard
+
+Files and its picker recovered after restarting only FileProvider. All Files
+hooks loaded in both fileproviderd and LocalStorageFileProvider; root lookup
+and an actual create-folder operation passed, and the user confirmed the UI.
+The persistent compatible launchctl is now signed without task_for_pid-allow,
+which otherwise causes SIGKILL before main on the current boot.
+
+The 13:06 boot artifacts had only 123 records and no task-access entries.
+The release CLI had not been rebuilt since October 7. Therefore the root/mobile
+taskprobe failures on that boot do not test the new fourteen patches. Both CLI
+configurations were rebuilt. The diagnostic task-access plan now changes
+the two version strings to `/TASKACC_ARM64_T8020`; after boot, require that tag
+in uname before evaluating taskprobe. The old `/PATCHED_ARM64_T8020` tag alone
+cannot identify this plan.
+
+The current com.jbboot job repeatedly failed to exec pfwatch and was removed
+from its running user/501 domain after persona setup had already completed.
+This stops the retry loop for this boot, does not remove the on-disk job,
+and does not establish that the PosterBoard watcher is working.
+
+The signed TASKACC boot set passed byte-for-byte verification against all
+137 fixture records and the expected output hash
+`f2190ac3ebb05075ca53f32d83c3c2b29ce3e426253095b60892f9915dd9ed4b`.
+All fourteen task-access records are present. Preparation now rejects missing
+records or a stale version marker for this opt-in profile. The Python workflow
+suite passed 65 tests with two skips. Hardware task-port validation remains
+pending the new boot. The working 123-record set is retained as
+`Ramdisk.working-123-20261008`.

@@ -33,6 +33,28 @@ PASSTHROUGH_IMG4 = [
 TRUST_CACHES = {"StaticTrustCache", "RestoreTrustCache"}
 
 
+def verify_task_access_records(context: Context, kernel_plan: str) -> None:
+    """Reject an old CLI preparing this diagnostic iPad plan without its patches."""
+    if context.profile_id != "ipad11,6-j171aap-23H30" or kernel_plan != "boot-jit":
+        return
+    path = context.state / "patch-records" / "boot-kernel.json"
+    try:
+        records = json.loads(path.read_text())
+        by_id = {record["id"]: record for record in records}
+        expected = {f"kernel.task-access.{callback}.{word}"
+                    for callback in ("amfi-get-task", "sandbox-expose-task", "sandbox-get-task", "sandbox-debug")
+                    for word in range(3)}
+        expected.update(f"kernel.task-access.conversion.{n}" for n in range(2))
+        marker = b"/TASKACC_ARM64_T8020".hex()
+        valid = expected.issubset(by_id) and all(
+            by_id[f"kernel.identity.{n}"]["replacementBytes"] == marker for n in range(2))
+    except (OSError, ValueError, TypeError, KeyError):
+        valid = False
+    if not valid:
+        raise WorkflowError("iPad boot-jit is missing task-access records or its version marker; "
+                            "rebuild the selected Liter8 CLI before preparing this boot set")
+
+
 def selected_passthrough(
     components: dict[str, str], mode: str, *, static_trust_cache: bool = False
 ) -> list[tuple[str, str, str]]:
@@ -231,6 +253,7 @@ def build_normal_boot() -> None:
         kernel_plan = normal_kernel_plan(context)
         print(f"[*] normal boot: kernel plan {kernel_plan}", flush=True)
         context.apply("kernel", kernel_plan, kernel, record_name="boot-kernel")
+        verify_task_access_records(context, kernel_plan)
         create_img4(
             context, kernel, ticket, staging / "Kernelcache.img4", fourcc="rkrn"
         )
