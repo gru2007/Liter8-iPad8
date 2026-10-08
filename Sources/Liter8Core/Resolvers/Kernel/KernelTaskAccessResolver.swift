@@ -101,6 +101,42 @@ public struct KernelTaskAccessResolver: Sendable {
                 summary: "Take the caller-equals-victim task conversion path",
                 evidence: ["paired same-target platform queries", "kernel_task load and two comparisons", "exactly two conversion paths in reviewed T8020 kernel"]))
         }
+        // Developer Mode is inlined here: patching developer_mode_state's
+        // exported body does not affect this earlier foreign-control gate.
+        // Out-trans returns IP_DEAD before reaching the platform comparison.
+        // Force only its caller==victim branch, after task_require validation.
+        let earlyShape: [(UInt32, UInt32)] = [
+            (0x90000008, 0x9f00001f), (0xf9400108, 0xffc003ff),
+            (0xb4000008, 0xff00001f), (0x39400108, 0xffffffff),
+            (0x37000008, 0xfff8001f), (0xeb01001f, 0xffffffff),
+            (0x54000000, 0xff00001f), (0x35000003, 0xff00001f),
+            (0xaa0003f3, 0xffffffff), (0xaa0103e0, 0xffffffff),
+            (0xaa0103f4, 0xffffffff), (0xaa0203f5, 0xffffffff),
+            (0x94000000, 0xfc000000), (0xaa1403e1, 0xffffffff),
+            (0xaa0003e8, 0xffffffff), (0xaa1303e0, 0xffffffff),
+            (0x34000008, 0xff00001f), (0x52800008, 0xffffffff),
+        ]
+        var earlySites: [UInt64] = []
+        for site in conversionSites where site >= 72 {
+            let start = site - 72
+            guard try earlyShape.enumerated().allSatisfy({ i, pair in
+                try image.readUInt32(at: start + UInt64(i * 4)) & pair.1 == pair.0
+            }) else { continue }
+            let compare = site - 52
+            guard ARM64.conditionalTarget(instruction: try image.readUInt32(at: start + 8), at: start + 8) == compare,
+                  ARM64.testBranchTarget(instruction: try image.readUInt32(at: start + 16), at: start + 16) == site - 4,
+                  ARM64.conditionalTarget(instruction: try image.readUInt32(at: compare + 4), at: compare + 4) == site - 4,
+                  ARM64.conditionalTarget(instruction: try image.readUInt32(at: compare + 8), at: compare + 8) == site - 4 else { continue }
+            earlySites.append(compare)
+        }
+        guard earlySites.count == 1, let early = earlySites.first else {
+            throw PatchfinderError.ambiguousCandidate("inlined Developer Mode task out-trans gate", offsets: earlySites)
+        }
+        records.append(PatchRecord(id: "kernel.task-access.control-out-trans", component: "kernelcache",
+            offset: early, original: try image.readUInt32(at: early), replacement: 0xeb1f03ff,
+            summary: "Take the self path before the inlined foreign-control Developer Mode denial",
+            evidence: ["Developer Mode byte load, caller comparison, flavor branch and corpse query",
+                       "three branches converge on zero-result continuation", "task_require and null validation remain before this gate"]))
         return records
     }
 

@@ -1,5 +1,5 @@
 {
-  "expectedOutputSHA256" : "9980ea3251c82db478b25465a2f96ba35c237fdafe45476ae002477d13dc1a2f",
+  "expectedOutputSHA256" : "32ff329f6b451be7c2590a0a9855174ef684738a5e9a2b1a88a4d17db38b1dbb",
   "expectedPatches" : [
     {
       "id" : "kernel.task-access.amfi-get-task.0",
@@ -83,6 +83,12 @@
       "id" : "kernel.task-access.conversion.1",
       "offset" : 44415028,
       "originalBytes" : "1f0014eb",
+      "replacementBytes" : "ff031feb"
+    },
+    {
+      "id" : "kernel.task-access.control-out-trans",
+      "offset" : 44408424,
+      "originalBytes" : "1f0001eb",
       "replacementBytes" : "ff031feb"
     }
   ],

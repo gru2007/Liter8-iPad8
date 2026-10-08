@@ -88,7 +88,7 @@ public struct KernelBootJITResolver: Sendable {
                 guard record.id.hasPrefix("kernel.identity.") else { return record }
                 return PatchRecord(id: record.id, component: record.component,
                     offset: record.offset, originalBytes: record.originalBytes,
-                    replacementBytes: Data("/TASKACC_ARM64_T8020".utf8),
+                    replacementBytes: Data("/TASKAC2_ARM64_T8020".utf8),
                     summary: "Identify the experimental task-access boot in uname",
                     evidence: record.evidence + ["task-access records included in this boot plan"])
             }

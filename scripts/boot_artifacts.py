@@ -45,7 +45,8 @@ def verify_task_access_records(context: Context, kernel_plan: str) -> None:
                     for callback in ("amfi-get-task", "sandbox-expose-task", "sandbox-get-task", "sandbox-debug")
                     for word in range(3)}
         expected.update(f"kernel.task-access.conversion.{n}" for n in range(2))
-        marker = b"/TASKACC_ARM64_T8020".hex()
+        expected.add("kernel.task-access.control-out-trans")
+        marker = b"/TASKAC2_ARM64_T8020".hex()
         valid = expected.issubset(by_id) and all(
             by_id[f"kernel.identity.{n}"]["replacementBytes"] == marker for n in range(2))
     except (OSError, ValueError, TypeError, KeyError):

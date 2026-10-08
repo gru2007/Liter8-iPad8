@@ -57,7 +57,7 @@ standalone diagnostic plan. After the failed boot, automatic inclusion was
 briefly reverted and then restored at the operator's request for a controlled
 comparison with tweak injection disabled. The cause of the boot failure
 remains unisolated.
-POSIX credential checks and the kernel_task exclusion are not removed.
+POSIX credential checks and task_for_pid's explicit PID-0 rejection are not removed.
 
 Standalone fixture: 14 records. Full boot-jit fixture: 137 records.
 The task-access boot failed to reach the interface: launch messages appeared,
@@ -135,3 +135,20 @@ records or a stale version marker for this opt-in profile. The Python workflow
 suite passed 65 tests with two skips. Hardware task-port validation remains
 pending the new boot. The working 123-record set is retained as
 `Ramdisk.working-123-20261008`.
+
+## TASKAC2: live control-port out-trans gate
+
+On the TASKACC kernel, exec-initialized probes returned success for both root
+and mobile but the port was `MACH_PORT_DEAD` (4294967295); memory reads failed.
+The preceding direct Developer Mode byte load in task_conversion_eval_internal
+was not covered by the exported developer_mode_state patch or the later
+platform comparison patches. For a foreign non-corpse control task, that gate
+returns an error for out-trans, and convert_task_to_port_with_flavor turns it
+into IP_DEAD. This is the source path consistent with the observed result.
+
+TASKAC2 adds one guarded caller-equals-victim comparison at that earlier gate,
+after null and task_require validation. The complete preceding instruction
+shape and three branch destinations are verified; no success stub replaces
+the task conversion function. Standalone task access has 15 records and
+boot-jit has 138. The distinct version marker is `/TASKAC2_ARM64_T8020`.
+New signed artifacts are prepared; hardware verification is still pending.

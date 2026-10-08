@@ -29,6 +29,7 @@ from boot_artifacts import (  # noqa: E402
     publish_directory,
     ticket_from_environment,
     write_boot_manifest,
+    verify_task_access_records,
 )
 from device_boot import (  # noqa: E402
     boot as boot_device,
@@ -1367,6 +1368,29 @@ class MeasureGuardsTests(unittest.TestCase):
             with self.assertRaises(WorkflowError) as raised:
                 measure_guards.measure(Path(scratch))
             self.assertIn("sbin/launchd", str(raised.exception))
+
+
+class TaskAccessBootRecordsTests(unittest.TestCase):
+    def test_stale_release_records_are_rejected(self):
+        from types import SimpleNamespace
+        root = SCRIPTS.parent
+        manifest = json.loads((root / "fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json").read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            path = state / "patch-records/boot-kernel.json"
+            path.parent.mkdir()
+            context = SimpleNamespace(state=state, profile_id="ipad11,6-j171aap-23H30")
+            records = manifest["expectedPatches"]
+            path.write_text(json.dumps(records))
+            verify_task_access_records(context, "boot-jit")
+            for damaged in ([r for r in records if not r["id"].startswith("kernel.task-access.")],
+                            [r for r in records if r["id"] != "kernel.task-access.conversion.1"]):
+                path.write_text(json.dumps(damaged))
+                with self.assertRaises(WorkflowError):
+                    verify_task_access_records(context, "boot-jit")
+            verify_task_access_records(context, "boot-public")
+            context.profile_id = "iphone11-n104ap-24A435"
+            verify_task_access_records(context, "boot-jit")
 
 
 if __name__ == "__main__":

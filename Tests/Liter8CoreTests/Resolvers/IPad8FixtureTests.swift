@@ -46,8 +46,8 @@ final class IPad8FixtureTests: XCTestCase {
             ("kernel-credential-manager-j171aap-23H30.json", "kernelcache", 50),
             ("kernel-sandbox-public-j171aap-23H30.json", "kernelcache", 11),
             ("kernel-boot-public-j171aap-23H30.json", "kernelcache", 118),
-            ("kernel-boot-jit-j171aap-23H30.json", "kernelcache", 137),
-            ("kernel-task-access-j171aap-23H30.json", "kernelcache", 14),
+            ("kernel-boot-jit-j171aap-23H30.json", "kernelcache", 138),
+            ("kernel-task-access-j171aap-23H30.json", "kernelcache", 15),
             ("kernel-ppl-trust-cache-j171aap-23H30.json", "kernelcache", 1),
             ("ibec-restore-j171aap-23H30.json", "iBEC.raw", 6),
             ("mobileactivationd-j171aap-23H30.json", "mobileactivationd", 5),
@@ -75,8 +75,8 @@ final class IPad8FixtureTests: XCTestCase {
         }
         let data = try Data(contentsOf: binary)
         let records = try KernelTaskAccessResolver().resolve(in: BinaryImage(data: data))
-        XCTAssertEqual(records.count, 14)
-        for id in ["kernel.task-access.amfi-get-task.0", "kernel.task-access.sandbox-get-task.0", "kernel.task-access.conversion.1"] {
+        XCTAssertEqual(records.count, 15)
+        for id in ["kernel.task-access.amfi-get-task.0", "kernel.task-access.sandbox-get-task.0", "kernel.task-access.conversion.1", "kernel.task-access.control-out-trans"] {
             let record = try XCTUnwrap(records.first { $0.id == id })
             var damaged = data
             let p = Int(record.offset)
