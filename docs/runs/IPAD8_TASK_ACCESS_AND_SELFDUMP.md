@@ -152,3 +152,20 @@ shape and three branch destinations are verified; no success stub replaces
 the task conversion function. Standalone task access has 15 records and
 boot-jit has 138. The distinct version marker is `/TASKAC2_ARM64_T8020`.
 New signed artifacts are prepared; hardware verification is still pending.
+
+## Hardware confirmation: TASKAC2 (2026-10-08)
+
+The operator booted the TASKAC2 kernel and supplied both complete taskprobe
+outputs. Root (uid 0) and mobile (uid 501), both with issetugid=0, passed:
+
+- task_for_pid returned KERN_SUCCESS and a live port (2563).
+- pid_for_task returned KERN_SUCCESS and matched the child PID.
+- mach_vm_read_overwrite read eight bytes and matched the expected witness.
+- mach_vm_write returned KERN_SUCCESS; the child verified the replacement.
+
+This confirms foreign child task-port access and read/write memory operations
+for both credentials on iPad11,6 / 23H30. It does not by itself verify arbitrary
+cross-UID system tasks, restricted-entitlement executable launch, kernel_task,
+or a complete TrollDecrypt application dump. Earlier pending/failure sections
+above describe the preceding revisions; this confirmation supersedes the
+TASKAC2 hardware-pending statement only.
