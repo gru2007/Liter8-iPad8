@@ -284,7 +284,7 @@ idevicesyslog | grep -iE "CODE ?SIGNING|Invalid Page|cs_invalid|pmap"
 2. Включи инъекцию (lhook перечитывает это при каждом запуске процесса):
 
 ```sh
-touch /var/jb/.lhook_enabled        # главный выключатель инъекции
+/var/jb/usr/bin/lhookctl enable     # после запуска интерфейса; только на эту загрузку
 touch /var/jb/.lhook_debug          # по желанию: лог инъекции
 ```
 

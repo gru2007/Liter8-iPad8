@@ -64,3 +64,4 @@ device/spawnprobe/personaalloc
 /device/appfix/newterm-helper
 /device/taskprobe/taskprobe
 /device/taskprobe/l8selfdump.dylib
+/device/launchdhook/lhookctl

@@ -148,7 +148,7 @@ With csprobe passing:
 
 ```sh
 # ElleKit + a tweak must be installed under the bootstrap, then:
-touch /var/jb/.lhook_enabled          # master switch (lhook re-reads per spawn)
+/var/jb/usr/bin/lhookctl enable       # after UI startup; this boot only
 touch /var/jb/.lhook_debug            # optional: trace injection
 # respring or relaunch the target process
 cat /var/jb/tmp/lhook.log | tail -50  # did TweakLoader reach the process?
