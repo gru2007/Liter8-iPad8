@@ -65,3 +65,6 @@ device/spawnprobe/personaalloc
 /device/taskprobe/taskprobe
 /device/taskprobe/l8selfdump.dylib
 /device/launchdhook/lhookctl
+
+# Original third-party executables saved before launch-signature repair.
+.liter8-trolldecrypt-backups/
