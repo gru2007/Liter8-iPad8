@@ -68,3 +68,6 @@ device/spawnprobe/personaalloc
 
 # Original third-party executables saved before launch-signature repair.
 .liter8-trolldecrypt-backups/
+/device/excportfix/l8excport.dylib
+/device/launchdhook/l8icons.dylib
+/device/trolldecryptfix/writer

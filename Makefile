@@ -46,6 +46,7 @@ integration: build
 	python3 Tests/ipsw-robustness-integration.py
 	python3 Tests/firmware-container-integration.py
 	python3 Tests/python-workflow-tests.py
+	python3 Tests/tweaks-tests.py
 
 check: test-full test-e2e integration
 

@@ -203,3 +203,5 @@ sh_dev "$RPATH; /var/jb/usr/bin/killall -9 SpringBoard" \
 ok "SpringBoard restart requested"
 
 printf '\n[+] Liter8 post-boot finalization complete\n'
+printf '    next: install ElleKit from Sileo, then after every boot run\n'
+printf '          liter8 fw tweaks   (enables injection and every tweaks.list fix)\n'

@@ -26,7 +26,7 @@ cd "$BASE"
 # it is resolved once here rather than spelled out at each call site.
 TOOLS="$BASE/../tools"
 
-STEPS="mounts ticket setup userland pairing screentime injection cache jbtools sileo resolv apps verify"
+STEPS="mounts ticket setup userland pairing screentime injection cache jbtools tweaks sileo resolv apps verify"
 
 usage() {
     echo "steps: $STEPS"
@@ -39,6 +39,7 @@ usage() {
     echo "  injection install launchd hook plus icon grant, disabled for first boot"
     echo "  cache    deploy the launchd service cache (dropbear + jbboot + DDI watcher + watchdogd mitigation)"
     echo "  jbtools  install boot helpers and the iOS 27 uicache"
+    echo "  tweaks   install every tweaks.list payload into /var/jb (ElleKit tweaks, helpers, switches)"
     echo "  sileo      install Sileo (from payload/, built by fetch_payloads.sh)"
     # TrollStore is not installed here. It goes on after first boot from a deb,
     # so it can be updated without another DFU trip. See COMMANDS.md.
@@ -811,6 +812,73 @@ mv -f /mnt2/jb/usr/bin/ddiwatch.usbl8r-new /mnt2/jb/usr/bin/ddiwatch
     ok "uicache (iOS 27 containerized registration)"
 fi
 
+# ------------------------------------------------------------------ tweaks
+# Everything tweaks.list names: the ElleKit tweaks and filters (Facebook's
+# exception-port guard, icons, passcode, persona, Files, VPN, iCleaner), the
+# helpers the per-boot activation runs, and the diagnostics. They live on the
+# Data volume, so `liter8 fw tweaks` can also re-sync them over SSH after boot;
+# installing them here means a fresh restore needs no separate tool per fix.
+# They stay inert until ElleKit is installed and lhookctl enables injection.
+tweak_device_path() {
+    printf '/mnt2/jb/%s' "${1#/var/jb/}"
+}
+
+if wants tweaks && [ "$CHECK_ONLY" = 0 ]; then
+    say "Data-volume tweaks and helpers"
+    T_DIR=payload/tweaks
+    [ -s "$T_DIR/MANIFEST" ] && [ -f "$T_DIR/MARKERS" ] \
+        || die "missing $T_DIR/MANIFEST; run ./fetch_payloads.sh tweaks"
+    mkdir -p payload/.work/tweaks
+
+    # Check every staged file against the manifest before any device write.
+    T_DIRS=""
+    while read -r t_sha t_mode t_path t_staged <&3; do
+        [ -f "$T_DIR/$t_staged" ] || die "$T_DIR/$t_staged is missing"
+        [ "$(shasum -a 256 "$T_DIR/$t_staged" | awk '{print $1}')" = "$t_sha" ] \
+            || die "$T_DIR/$t_staged does not match its manifest hash"
+        T_DIRS="$T_DIRS '$(dirname "$(tweak_device_path "$t_path")")'"
+    done 3< "$T_DIR/MANIFEST"
+    must_dev "mkdir -p $T_DIRS && echo DONE_OK" "could not create the tweak directories"
+
+    # Same-directory staging, then one rename per file, then a hash readback.
+    while read -r t_sha t_mode t_path t_staged <&3; do
+        t_dev=$(tweak_device_path "$t_path")
+        put "$T_DIR/$t_staged" "$t_dev.liter8-new"
+        must_dev "
+chmod $t_mode '$t_dev.liter8-new'
+mv -f '$t_dev.liter8-new' '$t_dev'
+echo DONE_OK
+" "could not activate $t_path"
+        sh_dev "/bin/cat '$t_dev'" > payload/.work/tweaks/readback \
+            || die "could not read back $t_path"
+        [ "$(shasum -a 256 payload/.work/tweaks/readback | awk '{print $1}')" = "$t_sha" ] \
+            || die "$t_path readback hash mismatch"
+        ok "$t_path"
+    done 3< "$T_DIR/MANIFEST"
+
+    # Default switches only on the first pass: a marker the owner removed later
+    # must stay removed when provisioning is repeated to top up a device.
+    T_STATE=/mnt2/jb/etc/liter8/markers-initialized
+    if sh_dev "[ -f '$T_STATE' ]"; then
+        skip "switches already initialized; left as they are"
+    else
+        T_CREATE=""
+        while read -r m_name m_path m_default <&3; do
+            [ "$m_default" = on ] || continue
+            m_dev=$(tweak_device_path "$m_path")
+            T_CREATE="$T_CREATE
+: > '$m_dev' && chmod 0600 '$m_dev' || exit 1"
+        done 3< "$T_DIR/MARKERS"
+        must_dev "
+mkdir -p /mnt2/jb/etc/liter8 || exit 1
+$T_CREATE
+: > '$T_STATE' && chmod 0644 '$T_STATE' || exit 1
+echo DONE_OK
+" "could not create the default tweak switches"
+        ok "default switches on: $(awk '$3 == "on" {printf "%s ", $1}' "$T_DIR/MARKERS")"
+    fi
+fi
+
 # ----------------------------------------------------------------- bundles
 # Sileo comes from payload/, built by fetch_payloads.sh from the upstream
 # release. It used to be scraped off the device (installed via dpkg, then pulled
@@ -1100,6 +1168,31 @@ fi
 note "ddiwatch System" "$ddiwatch_state"
 note "sbextissue System"  "$(sh_dev '[ -x /mnt1/usr/local/bin/sbextissue ] && echo present || echo ABSENT' | tr -d '\r')"
 note "pfruntimeprobe"     "$(sh_dev '[ -x /mnt2/jb/usr/bin/pfruntimeprobe ] && echo present || echo ABSENT' | tr -d '\r')"
+
+if [ -s payload/tweaks/MANIFEST ]; then
+    tweaks_total=0
+    tweaks_bad=""
+    mkdir -p payload/.work/tweaks
+    while read -r t_sha t_mode t_path t_staged <&3; do
+        tweaks_total=$((tweaks_total + 1))
+        sh_dev "/bin/cat '$(tweak_device_path "$t_path")'" \
+            > payload/.work/tweaks/verify 2>/dev/null || true
+        if [ ! -s payload/.work/tweaks/verify ] || \
+           [ "$(shasum -a 256 payload/.work/tweaks/verify | awk '{print $1}')" != "$t_sha" ]; then
+            tweaks_bad="$tweaks_bad ${t_path##*/}"
+        fi
+    done 3< payload/tweaks/MANIFEST
+    if [ -z "$tweaks_bad" ]; then
+        note "tweaks.list payload" "$tweaks_total files OK"
+    else
+        note "tweaks.list payload" "MISMATCH$tweaks_bad"
+    fi
+    while read -r m_name m_path m_default <&3; do
+        note "switch $m_name" "$(sh_dev "[ -f '$(tweak_device_path "$m_path")' ] && echo on || echo off" | tr -d '\r')"
+    done 3< payload/tweaks/MARKERS
+else
+    note "tweaks.list payload" "MISSING"
+fi
 
 if [ -f payload/uicache ]; then
     expected_uicache=$(shasum -a 256 payload/uicache | awk '{print $1}')

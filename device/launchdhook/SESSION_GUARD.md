@@ -7,7 +7,9 @@ cause of the observed boot failure.
 
 The new hook requires the file to contain the current `kern.bootsessionuuid`.
 Old empty files and previous-session UUIDs fail closed. There is no automatic
-enable during boot. After the interface is usable, root runs:
+enable during boot. After the interface is usable, `liter8 fw tweaks` on the
+Mac enables it and restarts the daemons whose tweaks need it (see
+`device/liter8_tweaks.py`). By hand, root runs:
 
 ```sh
 /var/jb/usr/bin/lhookctl status
@@ -63,9 +65,7 @@ consume the per-boot read token. The service confirmed
 that confirmation, followed by a SpringBoard restart. Visual confirmation is
 still required; the grant result alone does not prove rendered icons.
 
-Run `tools/icons-local` on the Mac after enabling lhook on a fully booted iPad.
-It builds and installs the scoped helper, refreshes the token, restarts only
-the icon service, waits for the verified grant, then registers rootless apps.
-It leaves SpringBoard restart to the caller (`killall SpringBoard` in SSH).
-No rootfs changes or kernel reboot are required. Token renewal and restarting
-the icon service are needed again after a new kernel boot.
+Provisioning installs the scoped helper as `l8icons` from `tweaks.list`.
+`liter8 fw tweaks`, after each boot, enables lhook, refreshes the token, restarts
+only the icon service, waits for the verified grant, registers rootless apps and
+then restarts SpringBoard. No rootfs changes or kernel reboot are required.

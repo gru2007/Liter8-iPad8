@@ -1,0 +1,76 @@
+# tweaks.list - every Data-volume payload Liter8 installs under /var/jb.
+#
+# This is the single list. build_tweaks.sh builds and stages exactly these
+# files, sshrd_provision.sh `tweaks` installs and verifies them from SSHRD, and
+# `liter8 fw tweaks` (liter8_tweaks.py) re-syncs and activates them after each
+# normal boot. Add a fix here rather than giving it its own installer.
+#
+#   file   <component dir> <built file> <device path> <mode>
+#   marker <name> <device path> <on|off>
+#
+# ElleKit's TweakLoader, which lhook loads once `lhookctl enable` has run for
+# the boot, reads every *.plist filter in TweakInject. Each dylib below also
+# keeps its own process, device/build and marker guards, so a filter match on
+# another device or build leaves the process unchanged.
+#
+# Markers are root-owned, mode 0600 files. A tweak with a marker is dormant
+# without it. `on` markers are created on the first provisioning pass only, so
+# a marker removed later stays removed. `liter8_tweaks.py enable|disable` flips
+# them on a running device.
+
+# App exception-port guard: apps run with platform trust after the PPL patch and
+# are killed with EXC_GUARD SET_EXCEPTION_BEHAVIOR (Facebook 581). Always on.
+file excportfix     l8excport.dylib   /var/jb/usr/lib/TweakInject/l8excport.dylib   0755
+file excportfix     l8excport.plist   /var/jb/usr/lib/TweakInject/l8excport.plist   0644
+
+# Rootless app icons: iconservicesagent consumes the per-boot read token.
+file launchdhook    l8icons.dylib     /var/jb/usr/lib/TweakInject/l8icons.dylib     0755
+file launchdhook    l8icons.plist     /var/jb/usr/lib/TweakInject/l8icons.plist     0644
+
+# SEP-less passcode confirmations (ACM -3 / LA -1000 -> no passcode set).
+file localauthfix   l8localauth.dylib /var/jb/usr/lib/TweakInject/l8localauth.dylib 0755
+file localauthfix   l8localauth.plist /var/jb/usr/lib/TweakInject/l8localauth.plist 0644
+marker localauth    /var/jb/.liter8-localauth  on
+
+# Install-path persona fallback in installd and installcoordinationd.
+file personafix     l8persona.dylib   /var/jb/usr/lib/TweakInject/l8persona.dylib   0755
+file personafix     l8persona.plist   /var/jb/usr/lib/TweakInject/l8persona.plist   0644
+file personafix     personainfo       /var/jb/usr/bin/personainfo                   0755
+marker persona      /var/jb/.liter8-persona    on
+
+# Files "On My iPad": local UserManagement view in fileproviderd/LocalStorage.
+file filesfix       l8files.dylib     /var/jb/usr/lib/TweakInject/l8files.dylib     0755
+file filesfix       l8files.plist     /var/jb/usr/lib/TweakInject/l8files.plist     0644
+file filesfix       l8lsreg           /var/jb/usr/bin/l8lsreg                       0755
+marker files        /var/jb/.liter8-files      on
+
+# Karing VPN: karingService consumes a boot-scoped app-group grant.
+file vpnfix         l8vpn.dylib       /var/jb/usr/lib/TweakInject/l8vpn.dylib       0755
+file vpnfix         l8vpn.plist       /var/jb/usr/lib/TweakInject/l8vpn.plist       0644
+file vpnfix         issue             /var/jb/usr/libexec/liter8/l8vpn-issue        0755
+marker vpn          /var/jb/.liter8-vpn        on
+
+# iCleaner as root through RunningBoard. Off by default: it only loads after a
+# runningboardd restart, which the activation performs only while this is on.
+file rootappfix     l8rootapps.dylib  /var/jb/usr/lib/TweakInject/l8rootapps.dylib  0755
+file rootappfix     l8rootapps.plist  /var/jb/usr/lib/TweakInject/l8rootapps.plist  0644
+marker rootapps     /var/jb/.liter8-rootapps   off
+
+# Helpers the per-boot activation runs. Their markers switch the matching
+# activation step rather than a tweak.
+# Marketplace: the seven eligibility answers AltStore installation needed.
+file marketplacefix eligibility       /var/jb/usr/libexec/liter8/eligibility        0755
+file marketplacefix persist           /var/jb/usr/libexec/liter8/eligibility-persist 0755
+marker marketplace  /var/jb/.liter8-marketplace on
+# Device preferences: SRD banner flag, AirDrop Everyone without the time limit.
+file deviceprefs    prefs             /var/jb/usr/libexec/liter8/deviceprefs        0755
+marker deviceprefs  /var/jb/.liter8-deviceprefs on
+# App compatibility: NewTerm root login, rootless Sileo signature, iCleaner
+# proxy removal and the TrollDecrypt launch signature on the TASKAC2 kernel.
+file appfix         newterm-login     /var/jb/usr/libexec/liter8/newterm-login      0755
+file appfix         newterm-helper    /var/jb/usr/libexec/liter8/newterm-helper     0755
+file trolldecryptfix writer           /var/jb/usr/libexec/liter8/trolldecrypt-writer 0755
+marker apps         /var/jb/.liter8-apps       on
+
+# Diagnostics, read-only.
+file csprobe        csprobe           /var/jb/usr/bin/csprobe                       0755

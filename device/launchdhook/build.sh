@@ -96,3 +96,20 @@ verify_deps "$BASE/systemhook.dylib" systemhook "/usr/lib/systemhook.dylib
 /usr/lib/libSystem.B.dylib"
 
 verify_deps "$BASE/sbextissue" sbextissue "/usr/lib/libSystem.B.dylib"
+
+# The same icon payload as an ElleKit tweak. iconservicesagent can predate the
+# per-boot lhookctl enable, so the TweakInject copy with its iconservicesagent
+# filter is what the per-boot activation relies on after restarting the agent.
+for arch in arm64 arm64e; do
+    xcrun clang -arch "$arch" -miphoneos-version-min=15.0 \
+        -isysroot "$SDK" -dynamiclib -O2 -Wall -Wextra \
+        -Wl,-not_for_dyld_shared_cache \
+        -install_name /var/jb/usr/lib/TweakInject/l8icons.dylib \
+        -o "$BASE/l8icons_$arch.dylib" "$BASE/systemhook_icon.c"
+done
+lipo -create "$BASE/l8icons_arm64.dylib" "$BASE/l8icons_arm64e.dylib" -output "$BASE/l8icons.dylib"
+rm -f "$BASE/l8icons_arm64.dylib" "$BASE/l8icons_arm64e.dylib"
+"$LDID" -S -Cadhoc "$BASE/l8icons.dylib"
+[ -z "$("$LDID" -e "$BASE/l8icons.dylib")" ] \
+    || { echo "[!] l8icons unexpectedly carries entitlements" >&2; exit 1; }
+echo "[+] $BASE/l8icons.dylib ($(lipo -archs "$BASE/l8icons.dylib"))"

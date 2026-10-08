@@ -14,38 +14,23 @@ On 2026-10-07 the user confirmed that AltStore Marketplace installed on
   HELIUM, LITHIUM, CARBON, ARGON, POTASSIUM and SEARCH_MARKETPLACES. Other entries
   and each domain's status/context are preserved.
 
-## Apply
+## How it is installed
 
-Prerequisites: a running experimental Liter8 boot, the integrated `lhook`,
-`/var/jb/.lhook_enabled`, ElleKit/TweakLoader, Python 3, an iOS SDK and USB SSH
-at `root@localhost:2222` with the current default password. This script does not
-replace System-volume files or the kernel.
+All of it is part of the normal Liter8 flow now; there is no separate repair
+script. `tweaks.list` names the two tweaks, their switches and the two helpers
+built here (`eligibility`, `eligibility-persist`), so:
 
-From the repository root on the Mac:
+- `liter8 fw provision` builds them and installs them under `/var/jb` from SSHRD,
+  with the `localauth`, `persona` and `marketplace` switches on.
+- `liter8 fw tweaks`, after each boot, enables injection, restarts the install
+  jobs (`installcoordinationd`, `installd`, `managedappdistributiond`,
+  `appstorecomponentsd`) so the tweaks load, and writes the seven answers again
+  whenever eligibilityd has regenerated them. Each write saves the plist it
+  replaced in a fresh `/var/jb/var/backups/marketplace-DATE-TIME`.
 
-```sh
-export LITER8_IOS_SDK="$HOME/theos/sdks/iPhoneOS16.5.sdk"
-python3 device/marketplacefix/repair.py apply
-```
-
-Use `--port PORT` if the USB forward differs. The helper refuses other device
-models/builds. The script builds the two tweaks with their host self-tests,
-backs up existing tweak files and marker states, edits eligibility with an
-entitled helper, verifies the disk readback and restarts these user/501 jobs:
-
-- `com.apple.installcoordinationd`
-- `com.apple.mobile.installd`
-- `com.apple.managedappdistributiond`
-- `com.apple.appstorecomponentsd`
-
-The installed Procursus `launchctl` was killed on this boot because it carried
-`task_for_pid-allow`. The script signs a temporary copy without that entitlement
-or `get-task-allow`, keeping its other entitlements. The installed copy is unchanged.
-
-Retry Marketplace installation from Safari and approve the system prompt.
-A completed script means the repair was applied; confirm actual installation
-on the device. Observe the log separately, specifying the iPad's UDID if more
-than one device is connected:
+The `eligibility` helper refuses other device models and builds. Retry
+Marketplace installation from Safari and approve the system prompt. Observe the
+log separately, specifying the iPad's UDID if more than one device is connected:
 
 ```sh
 idevicesyslog --no-colors | grep -iE 'l8persona|l8localauth|managedappdistribution|installcoordination|installd'
@@ -53,17 +38,13 @@ idevicesyslog --no-colors | grep -iE 'l8persona|l8localauth|managedappdistributi
 
 ## Restore
 
-The script prints a device directory such as
-`/var/jb/var/backups/marketplace-20261007-181500`. Use that exact directory:
-
 ```sh
-python3 device/marketplacefix/repair.py restore /var/jb/var/backups/marketplace-20261007-181500
+python3 device/liter8_tweaks.py eligibility restore /var/jb/var/backups/marketplace-20261007-181500
 ```
 
-This restores eligibility, the four original tweak files and the original marker
-states, then refreshes the same four jobs. Backups remain available. A partial
-apply can also be restored once its eligibility backup exists. No reboot or
-respring is performed.
+This writes the saved plist back and turns the `marketplace` switch off, so the
+next `fw tweaks` leaves the answers alone. `disable persona` and
+`disable localauth` turn the two tweaks off for future launches.
 
 ## Validation and limits
 
@@ -71,52 +52,45 @@ respring is performed.
 python3 device/marketplacefix/test.py
 ```
 
-The host test exercises the actual plist writer against temporary fixtures:
-seven-domain changes, preservation of other data and file permissions, refusal
-to overwrite a backup, restore, and rejection of incomplete input. Production
-builds retain the device/build guard; the host test bypass exists only when
-explicitly compiled for that test.
+`build.sh` runs it on a Mac. The host test exercises the actual plist writer
+against temporary fixtures: seven-domain changes, preservation of other data and
+file permissions, refusal to overwrite a backup, restore, and rejection of
+incomplete input. Production builds retain the device/build guard; the host test
+bypass exists only when explicitly compiled for that test.
 
 This is an installation workaround. It does not create a real personal persona,
-repair Files' “On My iPad”, supply SEP-backed authentication or enable kernel
-text hooks. On the tested boot the corrected `csprobe` still failed at stage 1
-(`RW|COPY`, protection failure). The normal repair does not prevent eligibility regeneration. The optional
-cache lock below protects its on-disk answers from writes and atomic replacement.
-It does not force eligibility decisions made in daemon memory. Other Marketplace stores and builds remain unverified.
+supply SEP-backed authentication or enable kernel text hooks. On the tested boot
+the corrected `csprobe` still failed at stage 1 (`RW|COPY`, protection failure).
+It does not force eligibility decisions made in daemon memory. Other Marketplace
+stores and builds remain unverified.
 
 Only source and instructions belong in Git. Apple binaries, device plists,
 account data, logs and backups stay outside the repository's tracked files.
 
 ## Optional cache lock (iPad11,6 / 23H30 only)
 
-After the original answers were regenerated, `persist.py` was added as an
-explicit, reversible disk-cache lock. It saves the pre-edit plist and original
+The per-boot rewrite covers regenerated answers at the next `fw tweaks`. The
+lock is for the time in between: it saves the pre-edit plist and the original
 file/directory flags in a fresh device backup, writes the same seven answers,
 then adds `UF_IMMUTABLE` to the file AND its directory. Directory protection
-also blocks creating temporary replacements and changing directory entries. Other cached feature eligibility
-answers also stop refreshing while this complete cache is locked. It neither
-stops eligibilityd nor modifies unrelated domain answers.
+also blocks creating temporary replacements and changing directory entries.
+Other cached feature eligibility answers also stop refreshing while this
+complete cache is locked. It neither stops eligibilityd nor modifies unrelated
+domain answers.
 
 ```sh
-export LITER8_IOS_SDK="$HOME/theos/sdks/iPhoneOS16.5.sdk"
-./tools/marketplace-eligibility apply
-./tools/marketplace-eligibility status
+python3 device/liter8_tweaks.py eligibility lock
+python3 device/liter8_tweaks.py eligibility status
+# Remove protection while keeping the current answers:
+python3 device/liter8_tweaks.py eligibility unlock
+# Remove protection and restore the pre-edit plist:
+python3 device/liter8_tweaks.py eligibility restore
 ```
 
-The active backup path is saved automatically. Commands without a backup path
-use that active backup. An explicit older backup path is also accepted:
-
-```sh
-# Remove protection while keeping the current eligibility answers.
-./tools/marketplace-eligibility unlock
-# Remove protection and restore the pre-edit plist.
-./tools/marketplace-eligibility restore
-```
-
-Repeated apply verifies both locks and the seven answers without replacing
-rollback metadata. A partial lock or unexpected locked answers are refused.
-The original `repair.py` writer cannot operate while the cache is locked;
-unlock it first. The persist commands do not restart services or the device.
+The active lock backup is remembered on the device, so unlock and restore
+without a path use it; an explicit older backup path is also accepted. Repeated
+lock leaves the existing rollback state alone. `fw tweaks` reports, and does not
+touch, a cache that is locked with other answers.
 
 Live validation on 2026-10-07: both flags read back as 2; root append-open and
 file creation in the directory failed with `Operation not permitted`. Unlock

@@ -1,26 +1,23 @@
 #!/bin/sh
-# Build l8lsreg, the LaunchServices plug-in inspector used to diagnose Files'
-# "On My iPad". Ad-hoc signed with uicache's entitlements (it uses the same
+# Build l8files, the local Files compatibility tweak, and l8lsreg, the
+# LaunchServices plug-in inspector used to diagnose Files' "On My iPad".
+# l8lsreg is ad-hoc signed with uicache's entitlements (it uses the same
 # LSApplicationWorkspace calls); no get-task-allow. See README.md.
-set -e
+set -eu
 cd "$(dirname "$0")"
-LDID=../../tools/ldid_macosx_arm64
-"$LDID" -v 2>&1 | grep -q "Link Identity Editor" || LDID=$(command -v ldid || true)
-# Command Line Tools have no iPhoneOS SDK. Point LITER8_IOS_SDK at an
-# unpacked one (for example Theos's) to build without Xcode.
-SDK="${LITER8_IOS_SDK:-$HOME/theos/sdks/iPhoneOS16.5.sdk}"
-[ -d "$SDK" ] || { echo "[!] iOS SDK missing: $SDK" >&2; exit 1; }
+. ../build_env.sh
 
 xcrun clang -isysroot "$SDK" -arch arm64 -arch arm64e \
     -miphoneos-version-min=15.0 -O2 -Wall -Wextra -fobjc-arc \
     -framework Foundation l8lsreg.m -o l8lsreg
 "$LDID" -Icom.liter8.l8lsreg -Sl8lsreg.entitlements -Cadhoc l8lsreg
-codesign -d --entitlements :- l8lsreg 2>/dev/null | grep -q get-task-allow \
-    && { echo "[!] l8lsreg carries get-task-allow, AMFI will kill it"; exit 1; }
+l8_no_task_allow l8lsreg
 echo "[+] l8lsreg  $(wc -c < l8lsreg | tr -d ' ') bytes"
-
 
 xcrun clang -isysroot "$SDK" -arch arm64 -arch arm64e \
     -miphoneos-version-min=15.0 -O2 -Wall -Wextra -fobjc-arc -dynamiclib \
+    -Wl,-not_for_dyld_shared_cache -install_name /var/jb/usr/lib/TweakInject/l8files.dylib \
     -framework Foundation l8files.m -o l8files.dylib
 "$LDID" -S -Cadhoc l8files.dylib
+l8_no_task_allow l8files.dylib
+echo "[+] l8files.dylib  $(wc -c < l8files.dylib | tr -d ' ') bytes"

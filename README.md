@@ -152,6 +152,20 @@ Wait until you can SSH into the booted OS, then:
 
 The second `--check` is just so you can see it went through.
 
+### 8. Tweaks, after every boot
+
+Install ElleKit from Sileo once. Then, each time the device has booted and the
+UI is up:
+
+```sh
+.build/release/liter8 fw tweaks --check
+.build/release/liter8 fw tweaks
+```
+
+This enables injection for the boot and activates every fix in
+`device/tweaks.list`, which provisioning already installed. See
+[device/README.md](device/README.md).
+
 ## How it's put together
 
 Swift does the thinking. Works out which firmware you handed it, parses the binaries, finds the patch sites, checks the bytes are what it expected before writing over them, and deals with IMG4, IM4P, APTickets and DeviceTrees.

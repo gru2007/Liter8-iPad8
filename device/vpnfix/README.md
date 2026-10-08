@@ -10,21 +10,15 @@ This separate repair issues a read/write sandbox extension for the existing
 ElleKit. It does not change app entitlements, app binaries, metadata, persona,
 or authentication results. The token stays on the device, root:mobile 0640.
 
-From the repository on the Mac, with the iPad available on localhost:2222:
+Provisioning installs the tweak, its filter and the issuer
+(`/var/jb/usr/libexec/liter8/l8vpn-issue`) from `tweaks.list` and turns the
+`vpn` switch on. Tokens last for the current boot, so `liter8 fw tweaks` finds
+Karing's app group from its container metadata and issues a new grant after
+every boot. It requires the Liter8/ElleKit injection, which the same command
+enables. The issuer rejects other models/builds. Disconnect and reconnect
+Karing afterwards. After reinstalling Karing, run `fw tweaks` again.
 
-```
-tools/karing-vpn apply
-tools/karing-vpn status
-tools/karing-vpn disable
-```
-
-Apply discovers the container from metadata, builds/signs the native payloads,
-and installs them. It requires the existing Liter8/ElleKit injection to work.
-The issuer rejects other models/builds. Disconnect and reconnect Karing after
-applying; no device reboot or SpringBoard restart is needed.
-
-Tokens last for the current boot. Repeat apply after a device reboot or Karing
-reinstallation. Disable removes the activation marker; disconnect Karing to
+`python3 device/liter8_tweaks.py disable vpn` removes the activation marker; disconnect Karing to
 terminate the extension and release its already consumed grant. Files remain
 installed but inert, so re-enabling is reversible. This is a Karing repair,
 not a general fix for missing personal persona or all VPN applications.

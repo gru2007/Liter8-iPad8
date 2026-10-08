@@ -1,8 +1,11 @@
 # NewTerm and Sileo compatibility on iPad11,6 / 23H30
 
-`tools/app-launch apply` builds and installs the NewTerm adapters and signs and
-registers Sileo. `restore` reinstates the original backups, `status` lists them.
-There is no automatic reboot, respring, or kernel write.
+`tweaks.list` builds the NewTerm adapters into `/var/jb/usr/libexec/liter8`.
+`liter8 fw tweaks`, while the `apps` switch is on, installs them over NewTerm's
+login path, re-signs and registers rootless Sileo, and removes the failed
+iCleaner proxy. It repeats only what a package upgrade has undone, so it is safe
+after every boot. `python3 device/liter8_tweaks.py restore-apps` reinstates the
+original backups and turns the switch off. No kernel write is involved.
 
 ## NewTerm
 
@@ -27,7 +30,9 @@ The installed signature had get-task-allow and many unsupported task/launchd
 privileges. Spawn failed with code 153. Apply preserves the original Keychain
 access groups and signs with the repo's tested six-entitlement persona/spawn
 set, then registers only Sileo.app. Subsequent launch succeeded and stayed alive.
-Its original binary is backed up as Sileo.liter8-before; package data is unchanged.
+The binary it replaced is kept as Sileo.liter8-before; package data is unchanged.
+A Sileo upgrade restores its shipped signature, and the next `fw tweaks` signs
+the new version the same way rather than reinstalling the old backup.
 
 ## iCleaner: native launch replaces the failed proxy
 
@@ -46,4 +51,4 @@ The separate `device/rootappfix` tweak now launches the actual app as root
 through RunningBoard, preserving its scene identity. The owner approved the
 required runningboardd restart; native uid 0 launch was verified without a reboot
 or change of SpringBoard PID. Visible UI confirmation is still pending. See
-that tweak's README and `tools/icleaner-root` for deployment and rollback.
+that tweak's README and its `rootapps` switch for deployment and rollback.

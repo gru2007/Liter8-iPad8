@@ -42,8 +42,8 @@ brew install \
 export LITER8_IOS_SDK=/path/to/iPhoneOS.sdk
 ```
 
-Держи её выставленной во всех следующих шагах (её читают `provision`,
-`csprobe`, `personainfo`, `l8localauth`).
+Держи её выставленной во всех следующих шагах (её читают `provision` и
+`tweaks`: они собирают все твики и вспомогательные бинарники из исходников).
 
 ### 1.3. Сборка Liter8
 
@@ -200,6 +200,13 @@ Provisioning ставит в том числе новый `lhook` (инъекц�
 и модифицированный launchd. Preboot выбирается по APFS-роли (на iPad это
 `disk1s5`, а не `disk1s6`).
 
+Шаг `tweaks` ставит в `/var/jb` **все** фиксы из `device/tweaks.list` одним
+проходом, с проверкой хешей: твики ElleKit с фильтрами (в том числе фикс
+Facebook `l8excport`, иконки, пароль, persona, «Файлы», Karing VPN, iCleaner),
+вспомогательные бинарники и диагностику (`csprobe`, `personainfo`, `l8lsreg`).
+Там же он включает переключатели по умолчанию. Отдельно ничего копировать не
+нужно.
+
 ---
 
 ## Часть 6. Обычная загрузка
@@ -237,6 +244,23 @@ $B fw finalize --experimental
 $B fw finalize --experimental --check
 ```
 
+Затем один раз поставь ElleKit через Sileo (он даёт
+`/var/jb/usr/lib/TweakLoader.dylib`) и **после каждой загрузки**, когда
+появился интерфейс:
+
+```sh
+$B fw tweaks --experimental --check   # что активно, ничего не меняет
+$B fw tweaks --experimental
+```
+
+`fw tweaks` пересобирает твики из исходников и докатывает изменённые файлы на
+устройство (Data-том, SSHRD не нужен), включает инъекцию на эту загрузку
+(`lhookctl enable`), выдаёт токен Karing, восстанавливает ответы eligibility для
+Marketplace, настройки устройства и адаптеры NewTerm/Sileo/TrollDecrypt, если
+обновление пакета их откатило, перезапускает только нужные демоны (иконки,
+FileProvider, службы установки) и делает respring. Повторный запуск в ту же
+загрузку безопасен и почти ничего не делает.
+
 ---
 
 ## Часть 7. Тесты на устройстве
@@ -255,13 +279,10 @@ uname -a                 # должно содержать PATCHED_ARM64_T8020
 ### 7.2. csprobe: работает ли изменение кода
 
 `csprobe` делает ровно то, что делает хук C-функции: делает свою страницу
-кода записываемой, переписывает инструкцию и выполняет её.
+кода записываемой, переписывает инструкцию и выполняет её. Provisioning уже
+положил его в `/var/jb/usr/bin`.
 
 ```sh
-# на Mac
-sh device/csprobe/build.sh
-scp device/csprobe/csprobe root@IPAD:/var/jb/usr/bin/
-
 # на Mac, во втором окне, пока идёт тест
 idevicesyslog | grep -iE "CODE ?SIGNING|Invalid Page|cs_invalid|pmap"
 
@@ -280,21 +301,15 @@ idevicesyslog | grep -iE "CODE ?SIGNING|Invalid Page|cs_invalid|pmap"
 
 ### 7.3. Твики
 
-1. Поставь ElleKit через Sileo (он даёт `/var/jb/usr/lib/TweakLoader.dylib`).
-2. Включи инъекцию (lhook перечитывает это при каждом запуске процесса):
+Всё делает `fw tweaks` (часть 6). Проверить:
 
 ```sh
-/var/jb/usr/bin/lhookctl enable     # после запуска интерфейса; только на эту загрузку
-touch /var/jb/.lhook_debug          # по желанию: лог инъекции
+$B fw tweaks --experimental --check     # на Mac: файлы, переключатели, инъекция, демоны
+touch /var/jb/.lhook_debug              # на iPad, по желанию: лог инъекции
+tail -50 /var/jb/tmp/lhook.log          # дошёл ли lhook до процесса
 ```
 
-3. Сделай respring и проверь:
-
-```sh
-tail -50 /var/jb/tmp/lhook.log      # дошёл ли lhook до процесса
-```
-
-4. Проверь два твика: один только с ObjC-хуками, один с хуком C-функции. Если
+Проверь два твика: один только с ObjC-хуками, один с хуком C-функции. Если
 второй раньше падал, а теперь работает — патчи code signing сделали своё.
 
 Важно: code signing отключён ядром для всех процессов, но инъекция твиков
@@ -304,25 +319,32 @@ tail -50 /var/jb/tmp/lhook.log      # дошёл ли lhook до процесс�
 `/var/jb/etc/lhook.deny`. Это защита от незагружаемого устройства, её не
 убираем.
 
+Переключатели (файлы-маркеры root 0600 в `/var/jb`) меняются с Mac:
+
+```sh
+python3 device/liter8_tweaks.py disable files     # выключить
+python3 device/liter8_tweaks.py enable rootapps   # включить
+```
+
+| Переключатель | Что делает | По умолчанию |
+| --- | --- | --- |
+| `localauth` | `l8localauth`: подтверждения паролем без SEP | вкл |
+| `persona` | `l8persona`: persona при установке приложений | вкл |
+| `files` | `l8files`: «На iPad» в «Файлах» | вкл |
+| `vpn` | `l8vpn` + токен Karing на каждую загрузку | вкл |
+| `marketplace` | ответы eligibility для Marketplace | вкл |
+| `deviceprefs` | баннер SRD, AirDrop «Для всех» без лимита | вкл |
+| `apps` | адаптеры NewTerm, подпись Sileo, TrollDecrypt, откат прокси iCleaner | вкл |
+| `rootapps` | `l8rootapps`: iCleaner от root (перезапуск runningboardd) | выкл |
+
+`l8excport` (Facebook и другие приложения со своим crash reporter) и `l8icons`
+(иконки rootless-приложений) работают всегда.
+
 ### 7.4. Пароль (подтверждения в магазине и не только)
 
 `l8localauth` переводит отказ ACM `-3` (без SEP пароль проверить нечем) в
-«пароль не задан», и интерфейс идёт по ветке без пароля. Ставится как твик
-ElleKit:
-
-```sh
-# на Mac
-sh device/localauthfix/build.sh       # на Mac заодно прогонит self-test
-scp device/localauthfix/l8localauth.dylib device/localauthfix/l8localauth.plist \
-    root@IPAD:/var/jb/usr/lib/TweakInject/
-
-# на iPad: включить (маркер должен принадлежать root; удалить = выключить)
-touch /private/var/jb/.liter8-localauth
-chmod 600 /private/var/jb/.liter8-localauth
-```
-
-Respring и проверь любой запрос пароля. Работает только при включённой
-инъекции (7.3).
+«пароль не задан», и интерфейс идёт по ветке без пароля. Он стоит и включён
+после provisioning, загружается после `fw tweaks`. Проверь любой запрос пароля.
 
 ### 7.5. Магазин приложений
 
@@ -342,26 +364,15 @@ persona (7.6).
 persona for <bundle> : <причина>`. `l8persona` — твик для `installd` и
 `installcoordinationd`: если штатное разрешение упало и personal persona нет,
 он берёт ветку, которую MobileInstallation использует на Shared iPad
-(`CONTAINER_PERSONA_PRIMARY`). Это обход только для установки: «На iPad» в
-«Файлах» он не чинит. 7 октября 2026 года на iPad11,6 / 23H30
-подтверждена установка AltStore Marketplace после включения этого обхода,
-`l8localauth` и изменения eligibility. Это проверка конкретной установки,
-а не подтверждение совместимости всех приложений.
+(`CONTAINER_PERSONA_PRIMARY`). Это обход только для установки. 7 октября 2026
+года на iPad11,6 / 23H30 подтверждена установка AltStore Marketplace после
+включения этого обхода, `l8localauth` и изменения eligibility. Это проверка
+конкретной установки, а не подтверждение совместимости всех приложений.
 
-```sh
-# на Mac (собирает personainfo и l8persona, заодно прогоняет self-test)
-sh device/personafix/build.sh
-scp device/personafix/l8persona.dylib device/personafix/l8persona.plist \
-    root@IPAD:/var/jb/usr/lib/TweakInject/
-scp device/personafix/personainfo root@IPAD:/var/jb/usr/bin/
-
-# на iPad: включить (маркер должен принадлежать root; удалить = выключить)
-touch /private/var/jb/.liter8-persona
-chmod 600 /private/var/jb/.liter8-persona
-killall -9 installd installcoordinationd 2>/dev/null   # launchd перезапустит их с твиком
-```
-
-Повтори установку и сними лог:
+Все три части теперь входят в `fw tweaks`: он перезапускает службы установки с
+твиками и, если eligibilityd сбросил ответы, записывает их снова (исходный
+plist сохраняется в `/var/jb/var/backups/marketplace-ДАТА-ВРЕМЯ`). Повтори
+установку с сайта, подтверди её в системном окне и сними лог:
 
 ```sh
 idevicesyslog | grep -iE "l8persona|persona|installcoordination|installd"
@@ -370,23 +381,8 @@ idevicesyslog | grep -iE "l8persona|persona|installcoordination|installd"
 `l8persona: installed in pid N` — твик загрузился; `resolved ... to
 com.apple.containermanager.primary-persona` — сработал обход.
 
-Повторяемый сценарий для проверенной сборки:
-
-```sh
-# На Mac, из корня репозитория. iPad запущен, USB SSH доступен на localhost:2222.
-export LITER8_IOS_SDK="$HOME/theos/sdks/iPhoneOS16.5.sdk"
-python3 device/marketplacefix/repair.py apply
-```
-
-Сценарий собирает твики из исходников, сохраняет исходный eligibility и прежние
-твики/маркеры, меняет семь проверенных ответов eligibility и перезапускает только
-службы установки и Marketplace. В `l8persona` успешный обход также очищает
-`NSError`: предыдущая ошибка не должна остаться после успешного разрешения.
-После команды повтори установку с сайта и подтверди её в системном окне.
-
-Подробности и откат: [Marketplace repair](../../device/marketplacefix/README.md).
-`repair.py restore /var/jb/var/backups/marketplace-ДАТА-ВРЕМЯ` восстанавливает
-состояние из каталога, напечатанного при применении. Перезагрузка не требуется.
+Подробности, откат и необязательная блокировка кэша eligibility:
+[Marketplace repair](../../device/marketplacefix/README.md).
 
 Состояние persona (только читает):
 
@@ -406,9 +402,10 @@ usermanagerd.
 | Что выключить | Как |
 | --- | --- |
 | Патчи code signing | `fw get-boot --experimental --no-tweaks`, затем `fw boot` |
-| Инъекцию твиков | `rm /var/jb/.lhook_enabled` |
-| Фикс пароля | `rm /private/var/jb/.liter8-localauth` |
-| Обход persona при установке | `rm /private/var/jb/.liter8-persona` |
+| Инъекцию твиков | `lhookctl disable` на iPad (или просто перезагрузка без `fw tweaks`) |
+| Любой фикс из таблицы 7.3 | `python3 device/liter8_tweaks.py disable ИМЯ` |
+| Ответы eligibility | `python3 device/liter8_tweaks.py eligibility restore /var/jb/var/backups/marketplace-ДАТА-ВРЕМЯ` |
+| Адаптеры NewTerm и подпись Sileo | `python3 device/liter8_tweaks.py restore-apps` |
 | Лог инъекции | `rm /var/jb/.lhook_debug` |
 
 ---

@@ -3,18 +3,19 @@
 **Working local storage**, confirmed on iPad11,6 / iPadOS 26.7.1 `23H30`,
 2026-10-07. VPN is a separate repair in `device/vpnfix`.
 
+`tweaks.list` installs `l8files` with its filter during provisioning and turns
+the `files` switch on. `liter8 fw tweaks` then restarts FileProvider once per
+boot, after injection is enabled, and watches the daemon: if it repeatedly
+exits, the switch is turned off and the stock daemon restarted. It needs ElleKit
+and the `/var/jb/usr/bin/launchctl` compatible utility.
+
 ```
-tools/files-local apply
-tools/files-local status
-tools/files-local disable
+python3 device/liter8_tweaks.py disable files   # stock behavior, documents kept
+python3 device/liter8_tweaks.py enable files
 ```
 
-The Mac wrapper builds/signs the tweak, installs it through localhost:2222,
-and restarts only FileProvider. It needs the existing ElleKit injection and
-`/var/jb/usr/bin/launchctl` compatible utility. No device reboot or SpringBoard restart.
-Apply watches the daemon and disables the marker if it repeatedly exits.
-Disable restores stock behavior without deleting documents. Reopen Files
-following either change. Both wrapper and payload reject other model/builds.
+Run `liter8 fw tweaks` and reopen Files after either change. The payload rejects
+other models and builds.
 
 ## Why this works
 

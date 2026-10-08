@@ -17,16 +17,18 @@ hooking only the first method was not invoked by this app's launch path.
 
 ## Deployment
 
-- Restore iCleaner's original executable (`tools/app-launch apply` removes the
-  failed proxy if its original `.liter8-real` backup exists).
-- `tools/icleaner-root prepare` builds/signs and installs the tweak and filter.
-- `tools/icleaner-root enable` creates a root-owned 0600 marker and removes only
-  a stale iCleaner application job so a fresh launch can receive the new policy.
-- The tweak must load in runningboardd. Installation on an already running daemon
-  does not load it. A daemon restart or a live injection mechanism is necessary.
-  The utility never restarts runningboardd or SpringBoard automatically.
-- `tools/icleaner-root disable` removes the marker and stale iCleaner jobs.
-  It closes a currently running iCleaner; other apps/daemons are untouched.
+- Provisioning installs the tweak and filter from `tweaks.list`. Its `rootapps`
+  switch is **off** by default.
+- `fw tweaks` (with the `apps` switch) restores iCleaner's original executable
+  when the failed proxy's `.liter8-real` backup exists.
+- `python3 device/liter8_tweaks.py enable rootapps` creates the root-owned 0600
+  marker. The tweak must load in runningboardd, which starts before injection is
+  enabled, so `fw tweaks` restarts runningboardd once per boot only while this
+  switch is on, and then removes only stale iCleaner application jobs so a fresh
+  launch receives the new policy.
+- `python3 device/liter8_tweaks.py disable rootapps` removes the marker and the
+  stale iCleaner jobs. It closes a currently running iCleaner; other apps and
+  daemons are untouched.
 
 Build guard: iPad11,6, 23H30, euid 0. Filter: runningboardd only. Without marker,
 new launch data passes through unchanged. Job UserName can persist in cached app

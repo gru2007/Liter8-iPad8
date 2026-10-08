@@ -16,6 +16,13 @@ unmanaged until its source and build are selected.
 
 ## Removed
 
+The per-fix device scripts (`app-launch`, `device-preferences`, `files-local`,
+`icleaner-root`, `icons-local`, `karing-vpn`, `marketplace-eligibility`,
+`trolldecrypt-launch`) each installed and enabled one fix by hand. They are
+replaced by `device/tweaks.list`, provisioning's `tweaks` step and
+`liter8 fw tweaks`; `device/liter8_tweaks.py` holds the enable, disable and
+restore commands they used to offer.
+
 `bspatch`, `img4`, `img4tool`, `kerneldiff`, `optool` and
 `trustcache_macos_arm64` came over with the original `usbliter8-fun/tools`
 import and nothing ever called them. `img4tool` was the last to go: it

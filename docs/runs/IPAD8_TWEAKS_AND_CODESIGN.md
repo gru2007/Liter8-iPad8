@@ -118,11 +118,7 @@ own code writable, rewrites an instruction, restores execute, runs it — and
 reports which stage fails.
 
 ```sh
-# build it on the Mac (needs the iOS SDK as above), then copy over:
-sh device/csprobe/build.sh
-scp device/csprobe/csprobe root@DEVICE:/var/jb/usr/bin/
-
-# on the Mac, watch the code-signing log while it runs:
+# provisioning installs it from tweaks.list; on the Mac, watch the code-signing log while it runs:
 idevicesyslog | grep -iE "CODE ?SIGNING|csproc|Invalid Page|cs_invalid|amfi"
 
 # on the device:
@@ -147,12 +143,14 @@ tells us whether the kernel work is finished or which patch to refine.
 With csprobe passing:
 
 ```sh
-# ElleKit + a tweak must be installed under the bootstrap, then:
-/var/jb/usr/bin/lhookctl enable       # after UI startup; this boot only
-touch /var/jb/.lhook_debug            # optional: trace injection
-# respring or relaunch the target process
+# ElleKit from Sileo once, then after every boot, on the Mac:
+$B fw tweaks --experimental           # enable for this boot, restart daemons, respring
+touch /var/jb/.lhook_debug            # optional, on the device: trace injection
 cat /var/jb/tmp/lhook.log | tail -50  # did TweakLoader reach the process?
 ```
+
+`fw tweaks` is the single post-boot step for every fix in `device/tweaks.list`;
+see `device/liter8_tweaks.py`.
 
 Test one ObjC-only tweak and one that hooks a C function. If the C-function one
 now works where it used to crash, the code-signing patches did their job.
@@ -179,18 +177,13 @@ number, so it covers Oslo (store install), Trust-computer (1028) and the rest at
 once. It is marker-gated and changes no code pages, so it does not depend on the
 kernel patches.
 
-```sh
-sh device/localauthfix/build.sh          # also runs the self-test on a Mac
-# install it as an ElleKit tweak; lhook's TweakLoader loads it (Foundation filter):
-scp device/localauthfix/l8localauth.dylib device/localauthfix/l8localauth.plist \
-    root@DEVICE:/var/jb/usr/lib/TweakInject/
-# arm it (root-owned marker; remove to disable):
-ssh root@DEVICE 'touch /private/var/jb/.liter8-localauth && chmod 600 /private/var/jb/.liter8-localauth'
-```
+Provisioning installs it from `tweaks.list` (its build runs the self-test on a
+Mac) with the `localauth` switch on; `python3 device/liter8_tweaks.py disable
+localauth` turns it off.
 
 It must be loaded into the process that shows the prompt (the store's
 `AppDistributionLaunchAngel`, Settings, lockdownd, ...). With injection enabled
-(`/var/jb/.lhook_enabled`), the Foundation filter reaches all of them. For a
+(`fw tweaks`), the Foundation filter reaches all of them. For a
 daemon that is not injected, weak-load it the way `l8coreauth` is wired in
 provisioning.
 
@@ -210,9 +203,7 @@ separate from, and a prerequisite for, the store working.
 `personainfo` dumps the exact state. It reads only, changes nothing.
 
 ```sh
-sh device/personafix/build.sh
-scp device/personafix/personainfo root@DEVICE:/var/jb/usr/bin/
-ssh root@DEVICE /var/jb/usr/bin/personainfo
+ssh root@DEVICE /var/jb/usr/bin/personainfo   # installed by provisioning
 ```
 
 **Send me the whole output.** It shows the persona table, whether the personal
