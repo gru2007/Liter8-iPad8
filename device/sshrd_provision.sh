@@ -26,7 +26,7 @@ cd "$BASE"
 # it is resolved once here rather than spelled out at each call site.
 TOOLS="$BASE/../tools"
 
-STEPS="mounts ticket setup userland pairing screentime injection cache jbtools sileo resolv apps verify"
+STEPS="mounts ticket setup userland pairing screentime injection cache jbtools excport sileo resolv apps verify"
 
 usage() {
     echo "steps: $STEPS"
@@ -39,6 +39,7 @@ usage() {
     echo "  injection install launchd hook plus icon grant, disabled for first boot"
     echo "  cache    deploy the launchd service cache (dropbear + jbboot + DDI watcher + watchdogd mitigation)"
     echo "  jbtools  install boot helpers and the iOS 27 uicache"
+    echo "  excport  install the app exception-port guard into /var/jb/usr/lib/TweakInject"
     echo "  sileo      install Sileo (from payload/, built by fetch_payloads.sh)"
     # TrollStore is not installed here. It goes on after first boot from a deb,
     # so it can be updated without another DFU trip. See COMMANDS.md.
@@ -798,6 +799,41 @@ mv -f /mnt2/jb/usr/bin/ddiwatch.usbl8r-new /mnt2/jb/usr/bin/ddiwatch
     ok "uicache (iOS 27 containerized registration)"
 fi
 
+# ----------------------------------------------------------------- excport
+# Every binary runs with platform trust here, so apps whose crash reporter asks
+# for EXCEPTION_DEFAULT are killed with EXC_GUARD SET_EXCEPTION_BEHAVIOR before
+# UIApplicationMain. The guard is an ordinary ElleKit tweak: it lives on the Data
+# volume beside its UIKit filter, so it can be replaced over SSH after boot and
+# stays idle until ElleKit's TweakLoader is installed. See excportfix/l8excport.c.
+if wants excport && [ "$CHECK_ONLY" = 0 ]; then
+    say "app exception-port guard"
+    E_LOCAL=payload/l8excport.dylib
+    E_FILTER=excportfix/l8excport.plist
+    E_DIR=/mnt2/jb/usr/lib/TweakInject
+    E_READBACK=payload/.work/l8excport.readback
+    mkdir -p payload/.work
+
+    [ -f "$E_LOCAL" ] || die "missing $E_LOCAL; run fetch_payloads.sh excport"
+    [ -f "$E_FILTER" ] || die "missing $E_FILTER"
+    codesign -v "$E_LOCAL" || die "l8excport.dylib has an invalid CodeDirectory"
+    E_WANT=$(shasum -a 256 "$E_LOCAL" | awk '{print $1}')
+    sh_dev "mkdir -p '$E_DIR'" || die "could not create $E_DIR"
+    put "$E_LOCAL" "$E_DIR/l8excport.dylib.liter8-new"
+    put "$E_FILTER" "$E_DIR/l8excport.plist.liter8-new"
+    must_dev "
+chmod 0755 '$E_DIR/l8excport.dylib.liter8-new'
+chmod 0644 '$E_DIR/l8excport.plist.liter8-new'
+mv -f '$E_DIR/l8excport.plist.liter8-new' '$E_DIR/l8excport.plist'
+mv -f '$E_DIR/l8excport.dylib.liter8-new' '$E_DIR/l8excport.dylib'
+echo DONE_OK
+" "could not activate l8excport.dylib"
+    sh_dev "/bin/cat '$E_DIR/l8excport.dylib'" > "$E_READBACK" \
+        || die "could not read back l8excport.dylib"
+    [ "$(shasum -a 256 "$E_READBACK" | awk '{print $1}')" = "$E_WANT" ] \
+        || die "l8excport.dylib readback hash mismatch"
+    ok "l8excport.dylib and its UIKit filter deployed and read back ($E_WANT)"
+fi
+
 # ----------------------------------------------------------------- bundles
 # Sileo comes from payload/, built by fetch_payloads.sh from the upstream
 # release. It used to be scraped off the device (installed via dpkg, then pulled
@@ -1044,6 +1080,22 @@ else
     coreauth_library_state=MISSING
 fi
 note "l8coreauth dylib" "$coreauth_library_state"
+if [ -f payload/l8excport.dylib ]; then
+    excport_want=$(shasum -a 256 payload/l8excport.dylib | awk '{print $1}')
+    sh_dev '/bin/cat /mnt2/jb/usr/lib/TweakInject/l8excport.dylib' \
+        > payload/.work/verify.l8excport 2>/dev/null || true
+    if [ -s payload/.work/verify.l8excport ] && \
+       [ "$(shasum -a 256 payload/.work/verify.l8excport | awk '{print $1}')" = "$excport_want" ] && \
+       codesign -v payload/.work/verify.l8excport >/dev/null 2>&1 && \
+       sh_dev '[ -s /mnt2/jb/usr/lib/TweakInject/l8excport.plist ]'; then
+        excport_state=OK
+    else
+        excport_state=MISMATCH
+    fi
+else
+    excport_state=MISSING
+fi
+note "l8excport tweak" "$excport_state"
 note "pairing fallback marker" "$(sh_dev '[ -f /mnt2/root/Library/Lockdown/.liter8-pairing-fallback ] && [ ! -L /mnt2/root/Library/Lockdown/.liter8-pairing-fallback ] && echo OK || echo MISSING' | tr -d '\r')"
 note "RemoteXPC fallback marker" "$(sh_dev '[ -f /mnt1/usr/lib/.liter8-remotepairing-fallback ] && [ ! -L /mnt1/usr/lib/.liter8-remotepairing-fallback ] && echo OK || echo MISSING' | tr -d '\r')"
 note "pairing fallback key" "$(sh_dev '[ -s /mnt2/root/Library/Lockdown/liter8_pairing_key.der ] && echo generated || echo pending' | tr -d '\r')"

@@ -87,6 +87,21 @@ into the daemon's writable `com.apple.remotepairing` preferences domain. Copy,
 update, and delete fall back to that bounded store only when the same System
 marker and process guard match. Other keychain access is unchanged.
 
+Apps get one guard of their own. The PPL trust-cache patch gives every binary
+trust level 9, so the kernel treats App Store apps as platform code and applies
+the hardened exception-port policy to them. An app that installs a crash
+reporter with `EXCEPTION_DEFAULT` or `EXCEPTION_STATE_IDENTITY` is then killed
+with `EXC_GUARD` / `SET_EXCEPTION_BEHAVIOR` before `UIApplicationMain`; Facebook
+581 is the observed case. `excportfix/l8excport.dylib` is an ElleKit tweak with a
+`com.apple.UIKit` filter, installed by the `excport` provisioning step into
+`/var/jb/usr/lib/TweakInject`. It rebinds the four `*_set/swap_exception_ports`
+imports through the GOT, because code patching fails here and dyld ignores
+`__interpose` in dlopen'ed images, and swallows only the calls the kernel would
+refuse. The app's in-process crash reporter is then off and crashes reach
+ReportCrash; every other exception-port call is unchanged. Because it lives on
+the Data volume, a running device can take a new build over SSH without SSHRD.
+`./build.sh test` runs the host test that loads the guard with `dlopen()`.
+
 Exact-device validation completed PairSetup after an explicit Trust decision,
 then completed PairVerify on a second connection in the same boot without a
 new Trust sheet. After manually bootstrapping the already-mounted personalized

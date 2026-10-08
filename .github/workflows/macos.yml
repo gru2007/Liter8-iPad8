@@ -35,3 +35,13 @@ jobs:
         with:
           name: macos-validation
           path: validation.log
+      # The app exception-port guard lives on the Data volume, so a running
+      # device can take this build over SSH without a provisioning pass.
+      - name: Build the app exception-port guard
+        run: device/excportfix/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: l8excport
+          path: |
+            device/excportfix/l8excport.dylib
+            device/excportfix/l8excport.plist

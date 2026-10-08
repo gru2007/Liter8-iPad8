@@ -1054,6 +1054,68 @@ class ContextTests(unittest.TestCase):
         self.assertIn("method_setImplementation", coreauth_source)
         self.assertIn('dylib_path = "/usr/lib/l8coreauth.dylib"', fixups)
 
+    def test_exception_port_guard_is_a_data_volume_tweak(self):
+        source = (DEVICE / "excportfix/l8excport.c").read_text()
+        builder = (DEVICE / "excportfix/build.sh").read_text()
+        payload_builder = (DEVICE / "fetch_payloads.sh").read_text()
+        provisioner = (DEVICE / "sshrd_provision.sh").read_text()
+
+        # Only the two behaviors set_exception_behavior_allowed() refuses are
+        # swallowed; invalid behaviors still reach the kernel for its own answer.
+        refuse = source.split("static bool kernel_would_refuse", 1)[1].split(
+            "static void note_dropped", 1
+        )[0]
+        self.assertIn("case EXCEPTION_DEFAULT:", refuse)
+        self.assertIn("case EXCEPTION_STATE_IDENTITY:", refuse)
+        self.assertIn("MACH_PORT_VALID(port)", refuse)
+        self.assertNotIn("IDENTITY_PROTECTED", refuse)
+        self.assertIn("com.apple.private.set-exception-port", source)
+        self.assertIn("_dyld_register_func_for_add_image(rebind_image)", source)
+        self.assertIn("MH_DYLIB_IN_CACHE", source)
+        self.assertIn("header == self_header", source)
+        self.assertIn("ptrauth_sign_unauthenticated(mine, ptrauth_key_asia, slot)", source)
+        code = source.split("#include", 1)[1]
+        self.assertNotIn("__interpose", code)
+        self.assertNotIn("MSHookFunction", code)
+        for name in (
+            "task_set_exception_ports",
+            "thread_set_exception_ports",
+            "task_swap_exception_ports",
+            "thread_swap_exception_ports",
+        ):
+            self.assertIn(f'{{"{name}"', source)
+
+        self.assertEqual(
+            (DEVICE / "excportfix/l8excport.plist").read_text().strip(),
+            '{ Filter = { Bundles = ( "com.apple.UIKit" ); }; }',
+        )
+        self.assertIn("-install_name /var/jb/usr/lib/TweakInject/l8excport.dylib", builder)
+        self.assertIn("sectname __interpose", builder)
+        self.assertIn("sileo helpers cache injection pairing excport", payload_builder)
+        self.assertIn('cp excportfix/l8excport.dylib "$OUT/l8excport.dylib"', payload_builder)
+        self.assertIn("cache jbtools excport sileo", provisioner)
+        self.assertIn("E_DIR=/mnt2/jb/usr/lib/TweakInject", provisioner)
+        self.assertIn("l8excport.dylib readback hash mismatch", provisioner)
+        self.assertIn('note "l8excport tweak"', provisioner)
+
+    @unittest.skipUnless(sys.platform == "darwin", "requires Xcode")
+    def test_exception_port_guard_builds_and_drops_refused_calls(self):
+        builder = DEVICE / "excportfix/build.sh"
+        result = subprocess.run(
+            [builder, "test"], capture_output=True, text=True, check=False
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("control: ok", result.stdout)
+        self.assertIn("shim: ok", result.stdout)
+
+        environment = os.environ.copy()
+        environment["L8EXCPORT_OUT"] = str(self.root / "l8excport.dylib")
+        result = subprocess.run(
+            [builder], capture_output=True, text=True, env=environment, check=False
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.root / "l8excport.dylib").is_file())
+
     def test_userland_builder_preserves_identity_and_entitlements(self):
         liter8 = SCRIPTS.parent / ".build/debug/liter8"
         ldid = SCRIPTS.parent / "tools/ldid_macosx_arm64"
