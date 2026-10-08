@@ -79,7 +79,7 @@ die()  { printf '    [!] %s\n' "$1"; exit 1; }
     || die "ldid at $LDID cannot run on this host; brew install ldid-procursus"
 mkdir -p "$OUT" "$WORK"
 
-WANT="${*:-sileo helpers cache injection pairing}"
+WANT="${*:-sileo helpers cache injection pairing excport}"
 wants() { case " $WANT " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 
@@ -254,6 +254,18 @@ if wants pairing; then
     ok "coreauthd-only l8coreauth.dylib ready"
 fi
 
+# ----------------------------------------------------------------- excport
+# Loaded into apps by ElleKit's TweakLoader, not weak-linked into a daemon, so it
+# goes to the Data volume and has a filter plist beside it. See excportfix/l8excport.c.
+if wants excport; then
+    say "app exception-port guard"
+    ( cd excportfix && ./build.sh ) || die "exception-port guard build failed"
+    cp excportfix/l8excport.dylib "$OUT/l8excport.dylib"
+    codesign -v "$OUT/l8excport.dylib" \
+        || die "exception-port guard signature verification failed"
+    ok "TweakInject l8excport.dylib ready"
+fi
+
 # ------------------------------------------------------------------- cache
 # Build the launchd service cache from the IPSW, not from the device. It used
 # to be pulled off a live phone, which meant you needed an already-provisioned
@@ -343,7 +355,7 @@ for p in "$OUT/Sileo.app/Sileo" "$OUT/Sileo.app/giveMeRoot" \
          "$OUT/launchd.orig" "$OUT/launchd.hooked" "$OUT/lhook.dylib" \
          "$OUT/systemhook.dylib" "$OUT/sbextissue" "$OUT/l8pair.dylib" \
          "$OUT/l8remotepairing.dylib" "$OUT/l8coreauth.dylib" \
-         "$OUT/uicache" \
+         "$OUT/l8excport.dylib" "$OUT/uicache" \
          photodiag/photodiag spawnprobe/personaalloc appreg/appreg \
          photoforce/pfruntimeprobe photoforce/pfwatch ddiwatch/ddiwatch; do
     if [ -f "$p" ]; then
