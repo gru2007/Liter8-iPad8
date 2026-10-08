@@ -62,3 +62,5 @@ device/spawnprobe/personaalloc
 
 /device/rootappfix/l8rootapps.dylib
 /device/appfix/newterm-helper
+/device/taskprobe/taskprobe
+/device/taskprobe/l8selfdump.dylib

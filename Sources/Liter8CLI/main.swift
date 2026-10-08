@@ -36,7 +36,7 @@ private func usage() -> Never {
                   ibec-ignore-pinot-failure, ibec-force-pinot-id
       kernel      restore, ppl-trust-cache, boot-policy, aks, sep-silence,
                   sep, credential-manager, sandbox, sandbox-public,
-                  ppl-allow-invalid, vm-fault-cs-bypass, vm-map-protect,
+                  ppl-allow-invalid, vm-fault-cs-bypass, vm-map-protect, task-access,
                   valeria, boot, boot-public, boot-jit, diagnostic
       txm         restore, boot
       userland    restored-fdr, asr, coreauthd, ctkd, mobileactivationd
@@ -106,6 +106,7 @@ let resolverGroups: [String: [String: String]] = [
         "ppl-allow-invalid": KernelPPLAllowInvalidResolver.name,
         "vm-fault-cs-bypass": KernelVMFaultCSBypassResolver.name,
         "vm-map-protect": KernelVMMapProtectResolver.name,
+        "task-access": KernelTaskAccessResolver.name,
         "valeria": KernelValeriaResolver.name,
         "boot": KernelBootResolver.name,
         "boot-jit": KernelBootJITResolver.name,
@@ -278,6 +279,9 @@ func resolveRecords(
     case KernelVMMapProtectResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelVMMapProtectResolver().resolve(in: image)
+    case KernelTaskAccessResolver.name:
+        guard options.bootArguments == nil, options.panelID == nil else { usage() }
+        return try KernelTaskAccessResolver().resolve(in: image)
     case KernelValeriaResolver.name:
         guard options.bootArguments == nil, options.panelID == nil else { usage() }
         return try KernelValeriaResolver().resolve(in: image)

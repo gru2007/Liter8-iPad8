@@ -242,6 +242,10 @@ public enum KernelResolverProfileRegistry {
                     signature: "t8020-codesign-invalid-v1",
                     payload: "codesign-invalid-allow-v1"
                 ),
+                "kernel-task-access": ResolverVariantProfile(
+                    signature: "t8020-task-access-v1",
+                    payload: "macf-task-and-conversion-allow-v1"
+                ),
             ],
             // No scoped Sandbox predecessor, so no Valeria cave. Not ported.
             omittedResolvers: [KernelValeriaResolver.name]

@@ -1,0 +1,98 @@
+{
+  "expectedOutputSHA256" : "9980ea3251c82db478b25465a2f96ba35c237fdafe45476ae002477d13dc1a2f",
+  "expectedPatches" : [
+    {
+      "id" : "kernel.task-access.amfi-get-task.0",
+      "offset" : 27070964,
+      "originalBytes" : "7f2303d5",
+      "replacementBytes" : "5f2403d5"
+    },
+    {
+      "id" : "kernel.task-access.amfi-get-task.1",
+      "offset" : 27070968,
+      "originalBytes" : "ff4301d1",
+      "replacementBytes" : "00008052"
+    },
+    {
+      "id" : "kernel.task-access.amfi-get-task.2",
+      "offset" : 27070972,
+      "originalBytes" : "f85f01a9",
+      "replacementBytes" : "c0035fd6"
+    },
+    {
+      "id" : "kernel.task-access.sandbox-expose-task.0",
+      "offset" : 41750352,
+      "originalBytes" : "7f2303d5",
+      "replacementBytes" : "5f2403d5"
+    },
+    {
+      "id" : "kernel.task-access.sandbox-expose-task.1",
+      "offset" : 41750356,
+      "originalBytes" : "f44fbea9",
+      "replacementBytes" : "00008052"
+    },
+    {
+      "id" : "kernel.task-access.sandbox-expose-task.2",
+      "offset" : 41750360,
+      "originalBytes" : "fd7b01a9",
+      "replacementBytes" : "c0035fd6"
+    },
+    {
+      "id" : "kernel.task-access.sandbox-get-task.0",
+      "offset" : 41749788,
+      "originalBytes" : "7f2303d5",
+      "replacementBytes" : "5f2403d5"
+    },
+    {
+      "id" : "kernel.task-access.sandbox-get-task.1",
+      "offset" : 41749792,
+      "originalBytes" : "f657bda9",
+      "replacementBytes" : "00008052"
+    },
+    {
+      "id" : "kernel.task-access.sandbox-get-task.2",
+      "offset" : 41749796,
+      "originalBytes" : "f44f01a9",
+      "replacementBytes" : "c0035fd6"
+    },
+    {
+      "id" : "kernel.task-access.sandbox-debug.0",
+      "offset" : 41720964,
+      "originalBytes" : "7f2303d5",
+      "replacementBytes" : "5f2403d5"
+    },
+    {
+      "id" : "kernel.task-access.sandbox-debug.1",
+      "offset" : 41720968,
+      "originalBytes" : "fc6fbda9",
+      "replacementBytes" : "00008052"
+    },
+    {
+      "id" : "kernel.task-access.sandbox-debug.2",
+      "offset" : 41720972,
+      "originalBytes" : "f44f01a9",
+      "replacementBytes" : "c0035fd6"
+    },
+    {
+      "id" : "kernel.task-access.conversion.0",
+      "offset" : 44408476,
+      "originalBytes" : "1f0001eb",
+      "replacementBytes" : "ff031feb"
+    },
+    {
+      "id" : "kernel.task-access.conversion.1",
+      "offset" : 44415028,
+      "originalBytes" : "1f0014eb",
+      "replacementBytes" : "ff031feb"
+    }
+  ],
+  "expectedSize" : 59031552,
+  "resolver" : "kernel-task-access",
+  "sha256" : "eee662eba10dc9302a8999677361adf12ce86a61078ed387181ab9a183c334be",
+  "target" : {
+    "board" : "j171aap",
+    "build" : "23H30",
+    "component" : "kernelcache",
+    "device" : "iPad11,6"
+  }
+}
