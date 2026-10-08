@@ -46,7 +46,7 @@ final class IPad8FixtureTests: XCTestCase {
             ("kernel-credential-manager-j171aap-23H30.json", "kernelcache", 50),
             ("kernel-sandbox-public-j171aap-23H30.json", "kernelcache", 11),
             ("kernel-boot-public-j171aap-23H30.json", "kernelcache", 118),
-            ("kernel-boot-jit-j171aap-23H30.json", "kernelcache", 123),
+            ("kernel-boot-jit-j171aap-23H30.json", "kernelcache", 137),
             ("kernel-task-access-j171aap-23H30.json", "kernelcache", 14),
             ("kernel-ppl-trust-cache-j171aap-23H30.json", "kernelcache", 1),
             ("ibec-restore-j171aap-23H30.json", "iBEC.raw", 6),

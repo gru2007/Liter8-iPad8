@@ -80,6 +80,7 @@ public struct KernelBootJITResolver: Sendable {
     public func resolve(in image: BinaryImage) throws -> [PatchRecord] {
         try KernelBootCompatibilityResolver().resolve(in: image)
             + KernelCodeSigningResolver.requiredRecords(in: image)
+            + KernelTaskAccessResolver.requiredRecords(in: image)
     }
 }
 

@@ -52,18 +52,28 @@ has the child verify the change. Merely opening a decryptor UI is not a pass.
 and two task conversion paths. The latter strategy follows PongoOS's
 `checkra1n/kpf/mach_port.c`; it retains the surrounding object validation.
 The resolver rejects unknown kernels and damaged candidate instructions.
-It is available as a standalone diagnostic plan only. Its automatic inclusion
-in `boot-jit` was reverted after the device failed to reach the interface.
+It is included in `boot-jit` for this opt-in profile and also available as a
+standalone diagnostic plan. After the failed boot, automatic inclusion was
+briefly reverted and then restored at the operator's request for a controlled
+comparison with tweak injection disabled. The cause of the boot failure
+remains unisolated.
 POSIX credential checks and the kernel_task exclusion are not removed.
 
-Standalone fixture: 14 records. Restored full boot-jit fixture: 123 records.
+Standalone fixture: 14 records. Full boot-jit fixture: 137 records.
 The task-access boot failed to reach the interface: launch messages appeared,
 but this is not a successful hardware validation. The cause is not yet isolated.
-The previous boot set has been restored to `.liter8-ipad8-23H30/Ramdisk`.
-The failed set is retained as `Ramdisk.failed-task-access-20261008`; the original
-backup remains `Ramdisk.before-task-access-20261008`. Do not repeat the failed
-set or treat task access as working. The normal commands below use the restored
-boot-jit plan without these fourteen experimental records.
+The task-access set has been reselected in `.liter8-ipad8-23H30/Ramdisk` at
+the operator's request. The original backup remains
+`Ramdisk.before-task-access-20261008`. Do not treat task access as working
+until hardware tests pass. Next comparison: same task-access kernel, but remove
+`/var/jb/.lhook_enabled` before boot to disable ElleKit propagation and loading.
+With the Data volume mounted at `/mnt2` in SSHRD, the corresponding marker is
+`/mnt2/jb/.lhook_enabled`. Preserve it by renaming instead of deleting.
+`[lhook] loaded into pid` is an unconditional constructor message and does
+not prove that TweakLoader or an individual tweak loaded. The photograph also
+contains APFS class-1 protection failures and a persona lookup failure; it
+does not identify the failing executable. Capture the complete boot log for
+the comparison before attributing the failure to either the kernel or loader.
 The separate launch rejection of binaries carrying `task_for_pid-allow`
 must also be retested; these patches are not yet evidence that it is fixed.
 
