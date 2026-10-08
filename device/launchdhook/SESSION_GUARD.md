@@ -52,3 +52,20 @@ Validation on the host: both iOS architecture slices built and signed; shared
 gate/controller regression tests reject absent, empty, malformed and foreign
 session flags, and accept only the current session. Device installation,
 normal boot and sandboxed-app behavior still require hardware verification.
+
+### Rootless application icons
+
+The icon service can predate manual injection enabling. On 2026-10-08, white
+icons persisted after rootless bundle registration. A scoped ElleKit payload
+(`l8icons.plist`, only `iconservicesagent`) now reuses `systemhook_icon.c` to
+consume the per-boot read token. The service confirmed
+`consume OK, /var/jb verified readable`; bundles were registered again after
+that confirmation, followed by a SpringBoard restart. Visual confirmation is
+still required; the grant result alone does not prove rendered icons.
+
+Run `tools/icons-local` on the Mac after enabling lhook on a fully booted iPad.
+It builds and installs the scoped helper, refreshes the token, restarts only
+the icon service, waits for the verified grant, then registers rootless apps.
+It leaves SpringBoard restart to the caller (`killall SpringBoard` in SSH).
+No rootfs changes or kernel reboot are required. Token renewal and restarting
+the icon service are needed again after a new kernel boot.

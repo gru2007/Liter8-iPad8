@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""Restore rootless app icons without rebooting the device."""
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import time
+
+root = Path(__file__).resolve().parent.parent
+base = root / 'device/launchdhook'
+sdk = os.environ.get('LITER8_IOS_SDK', str(Path.home() / 'theos/sdks/iPhoneOS16.5.sdk'))
+
+def run(args, **kw):
+    return subprocess.run(args, stdout=subprocess.PIPE, check=True, **kw).stdout
+
+def ssh(command, data=None):
+    return run([str(root / 'tools/sshdev'), command], input=data)
+
+if b'enabled for this boot' not in ssh('lhookctl status'):
+    raise SystemExit('Enable lhook after the device has finished booting first.')
+with tempfile.TemporaryDirectory(prefix='liter8-icons-') as work:
+    work = Path(work)
+    for name, source, destination, mode, extra in [
+        ('l8icons.dylib', 'systemhook_icon.c', '/var/jb/usr/lib/TweakInject/l8icons.dylib', '755',
+         ['-dynamiclib', '-Wl,-not_for_dyld_shared_cache', '-install_name', '/var/jb/usr/lib/TweakInject/l8icons.dylib']),
+        ('sbextissue', 'sbextissue.c', '/var/jb/usr/bin/sbextissue', '755', []),
+    ]:
+        binary = work / name
+        run(['xcrun', 'clang', '-arch', 'arm64', '-isysroot', sdk, '-miphoneos-version-min=15.0',
+             '-O2', '-Wall', '-Wextra', *extra, str(base / source), '-o', str(binary)])
+        run([str(root / 'tools/ldid_macosx_arm64'), '-S', '-Cadhoc', str(binary)])
+        ssh(f'cat > {destination}.new && chmod {mode} {destination}.new && mv {destination}.new {destination}', binary.read_bytes())
+    ssh('cat > /var/jb/usr/lib/TweakInject/l8icons.plist.new && chmod 644 /var/jb/usr/lib/TweakInject/l8icons.plist.new && mv /var/jb/usr/lib/TweakInject/l8icons.plist.new /var/jb/usr/lib/TweakInject/l8icons.plist',
+        (base / 'l8icons.plist').read_bytes())
+    ssh('rm -f /private/var/tmp/sbext.iconservicesagent.result; sbextissue && launchctl kickstart -k user/501/com.apple.iconservices.iconservicesagent')
+    result = b''
+    for _ in range(15):
+        result = ssh('cat /private/var/tmp/sbext.iconservicesagent.result 2>/dev/null || true')
+        if result:
+            break
+        time.sleep(1)
+    if b'consume OK, /var/jb verified readable' not in result:
+        raise SystemExit('Icon service grant was not verified: ' + result.decode(errors='replace'))
+    ssh('for app in /var/jb/Applications/*.app; do uicache -p "$app" || exit; done')
+    print(result.decode().strip())
+    print('Registration refreshed. If needed, run killall SpringBoard in device SSH.')
