@@ -52,13 +52,18 @@ has the child verify the change. Merely opening a decryptor UI is not a pass.
 and two task conversion paths. The latter strategy follows PongoOS's
 `checkra1n/kpf/mach_port.c`; it retains the surrounding object validation.
 The resolver rejects unknown kernels and damaged candidate instructions.
-It is included in `boot-jit` for this opt-in profile only, not `boot-public`.
+It is available as a standalone diagnostic plan only. Its automatic inclusion
+in `boot-jit` was reverted after the device failed to reach the interface.
 POSIX credential checks and the kernel_task exclusion are not removed.
 
-Standalone fixture: 14 records. Full boot-jit fixture: 137 records.
-The signed normal boot set is prepared in `.liter8-ipad8-23H30/Ramdisk`;
-the former set is saved as `Ramdisk.before-task-access-20261008`.
-Hardware validation of the new task-access kernel is pending a new boot.
+Standalone fixture: 14 records. Restored full boot-jit fixture: 123 records.
+The task-access boot failed to reach the interface: launch messages appeared,
+but this is not a successful hardware validation. The cause is not yet isolated.
+The previous boot set has been restored to `.liter8-ipad8-23H30/Ramdisk`.
+The failed set is retained as `Ramdisk.failed-task-access-20261008`; the original
+backup remains `Ramdisk.before-task-access-20261008`. Do not repeat the failed
+set or treat task access as working. The normal commands below use the restored
+boot-jit plan without these fourteen experimental records.
 The separate launch rejection of binaries carrying `task_for_pid-allow`
 must also be retested; these patches are not yet evidence that it is fixed.
 
