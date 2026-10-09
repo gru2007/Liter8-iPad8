@@ -166,6 +166,32 @@ This enables injection for the boot and activates every fix in
 `device/tweaks.list`, which provisioning already installed. See
 [device/README.md](device/README.md).
 
+### 9. Optional: debugger and TrollStore
+
+Not part of the jailbreak. Skip it unless you want them. The device needs internet
+for this one, because apt resolves the dependencies on the phone.
+
+```sh
+.build/release/liter8 fw setup-debugger
+```
+
+Installs `debugserver`, re-signed so hardware breakpoints work, plus the TrollStore
+Lite helper. Then:
+
+```sh
+ssh -p 2222 root@localhost \
+  'nohup /var/jb/usr/bin/debugserver-16 127.0.0.1:1237 --attach=<pid> >/var/root/ds.log 2>&1 &'
+ssh -N -L 1237:127.0.0.1:1237 -p 2222 root@127.0.0.1
+
+lldb -o 'platform select remote-ios' -o 'process connect connect://127.0.0.1:1237'
+(lldb) breakpoint set -H -n <symbol>
+```
+
+`-H` is not optional: software breakpoints are silently dropped on this platform.
+Attaching to a daemon also needs a DeviceSupport tree for your exact build, or lldb
+hangs on connect. Both are explained in
+[docs/design/DEBUGGING_PLATFORM_DAEMONS.md](docs/design/DEBUGGING_PLATFORM_DAEMONS.md).
+
 ## How it's put together
 
 Swift does the thinking. Works out which firmware you handed it, parses the binaries, finds the patch sites, checks the bytes are what it expected before writing over them, and deals with IMG4, IM4P, APTickets and DeviceTrees.
@@ -227,6 +253,7 @@ state. The failure chains and fixes are written up in the docs.
 - [iPad 8: полная инструкция от IPSW до тестов (RU)](docs/runs/IPAD8_FULL_GUIDE_RU.md)
 - [Bootstrap and provisioning status](docs/design/BOOTSTRAP_JB_STATUS.md)
 - [Normal boot handoff](docs/design/NORMAL_BOOT_HANDOFF.md)
+- [Debugging platform daemons](docs/design/DEBUGGING_PLATFORM_DAEMONS.md)
 - [Performance backlog](docs/BACKLOG.md)
 
 ## Contributing

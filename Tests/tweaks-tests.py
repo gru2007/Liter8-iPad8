@@ -134,7 +134,10 @@ class WiringTests(unittest.TestCase):
         self.assertIn('"activate"', runner)
         self.assertIn('"tweaks": "device_provision.py"',
                       (ROOT / "Sources/Liter8CLI/FirmwareScriptRunner.swift").read_text())
-        self.assertIn('"setup-shell", "tweaks"', (ROOT / "Sources/Liter8CLI/main.swift").read_text())
+        self.assertIn('"setup-debugger", "tweaks"', runner)
+        commands = (ROOT / "Sources/Liter8CLI/FirmwareCommands.swift").read_text()
+        self.assertIn("Tweaks.self", commands)
+        self.assertIn('"tweaks", common: common', commands)
         self.assertIn("liter8 fw tweaks", (DEVICE / "finalize.sh").read_text())
         for gone in ("app-launch", "device-preferences", "files-local", "icleaner-root",
                      "icons-local", "karing-vpn", "marketplace-eligibility", "trolldecrypt-launch"):

@@ -24,7 +24,7 @@ Swift decides, Python plumbs. Swift picks the firmware profile, parses the binar
 
 ## Where a command goes
 
-`Sources/Liter8CLI/main.swift` reads the first argument and branches. `resolve`, `apply`, `verify`, `survey` and `inspect` load a `BinaryImage` and go straight into `Liter8Core`. Anything under `fw` goes through `FirmwareWorkflowRunner`, which writes a semantic context file and then hands off to the matching Python helper.
+`Sources/Liter8CLI/Liter8Command.swift` is the swift-argument-parser root; each subcommand lives in `PatchCommands`, `ContainerCommands`, `ToolCommands` or `FirmwareCommands`. `resolve`, `apply`, `verify`, `survey` and `inspect` load a `BinaryImage` and go straight into `Liter8Core`. Anything under `fw` goes through `FirmwareWorkflowRunner`, which writes a semantic context file and then hands off to the matching Python helper.
 
 `survey --guards` is the one exception: it runs the sweep in Swift, then calls `scripts/measure_guards.py` to read the pre-boot guards off the root filesystem, because the decrypt and mount already live in `rootfs.py`.
 
@@ -130,7 +130,7 @@ Redistribution terms for the third-party binaries under `tools/` have not been a
 ## Reading order
 
 1. `README.md`
-2. `Sources/Liter8CLI/main.swift`
+2. `Sources/Liter8CLI/Liter8Command.swift` and `Support.swift`
 3. `Sources/Liter8CLI/FirmwareWorkflowRunner.swift`
 4. `Sources/Liter8Core/Firmware/IPSWManifest.swift`
 5. `docs/FIRMWARE_SUPPORT_GUIDE.md`
