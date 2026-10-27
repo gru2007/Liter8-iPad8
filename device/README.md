@@ -39,6 +39,9 @@ Commands have deliberately narrow device states:
   TweakInject dylibs ad-hoc (`tweaksign/`), performs the guarded one-time System
   application registration, restarts SpringBoard and verifies `com.jbboot`.
   It refuses registration when container applications already exist.
+- `liter8 fw tweaks` (iPad 8 / 23H30 only) runs after every normal boot, once
+  the UI is up and ElleKit is installed. It is the single post-boot step for
+  the iPad 8 fixes described below, and refuses any other device or build.
 
 Add `--check` to inspect the corresponding state without installing files.
 Device scripts retain `.orig` or `.prev` copies when replacing boot-critical
@@ -91,6 +94,70 @@ password items named `Remote Pairing Identity` or `Remote Pairing Paired Peer`
 into the daemon's writable `com.apple.remotepairing` preferences domain. Copy,
 update, and delete fall back to that bounded store only when the same System
 marker and process guard match. Other keychain access is unchanged.
+
+## iPad 8 fixes: one list, one installer
+
+Every iPad 8 (iPad11,6 / 23H30) fix that lives under `/var/jb` is named in
+`tweaks.list`: the ElleKit tweaks with their filters, their switches, the
+helpers the post-boot activation runs, and the read-only diagnostics. It was
+measured on that device only, and `l8excport` and `l8icons` check only the
+process, so the list is never applied to another device. ElleKit's loader,
+`l8localauth` and `l8persona` are not in it: the general `tweaks` provisioning
+step installs those for every profile, and the list only carries their
+switches.
+
+- `build_tweaks.sh` runs each component's `build.sh` (host self-tests included)
+  and stages exactly the listed files into `payload/fixes` with a hash
+  manifest. `fetch_payloads.sh fixes` calls it on request; it is not a default
+  step.
+- `sshrd_provision.sh fixes` (opt-in) installs every file from SSHRD with a
+  readback hash check and creates the default-on switches on the first pass
+  only; `verify` checks the list whenever `payload/fixes` was built.
+- `liter8 fw tweaks` (`liter8_tweaks.py activate`) rebuilds, re-syncs anything
+  whose hash differs over SSH, runs `lhookctl enable` for this boot session,
+  performs the per-boot and self-healing steps (Karing grant, Marketplace
+  eligibility, device preferences, NewTerm/Sileo/TrollDecrypt adapters),
+  restarts only the daemons that must load their tweaks after the enable, and
+  resprings. `--check` reports without changing anything.
+- `liter8_tweaks.py enable|disable NAME` flips a switch; `restore-apps` and
+  `eligibility lock|unlock|restore` cover rollback.
+
+Switches are root-owned 0600 files `/var/jb/.liter8-NAME`; a tweak with a switch
+stays dormant without it.
+
+| Switch | Fix | Default |
+| --- | --- | --- |
+| none | `l8excport`: app exception-port guard (Facebook) | always |
+| none | `l8icons`: rootless app icons | always |
+| `localauth` | `l8localauth`: SEP-less passcode confirmations | on |
+| `persona` | `l8persona`: install-path persona fallback | on |
+| `files` | `l8files`: Files "On My iPad" | on |
+| `vpn` | `l8vpn` and the per-boot Karing grant | on |
+| `marketplace` | Marketplace eligibility answers | on |
+| `deviceprefs` | SRD banner flag, AirDrop Everyone without time limit | on |
+| `apps` | NewTerm login adapters, rootless Sileo signature, iCleaner proxy removal, TrollDecrypt launch signature | on |
+| `rootapps` | `l8rootapps`: iCleaner as root; restarts runningboardd | off |
+
+The app exception-port guard deserves a note, because it fixes a whole class of
+apps rather than one. The PPL trust-cache patch gives every binary trust level
+9, so the kernel treats App Store apps as platform code and applies the hardened
+exception-port policy to them. An app that installs a crash reporter with
+`EXCEPTION_DEFAULT` or `EXCEPTION_STATE_IDENTITY` is then killed with
+`EXC_GUARD` / `SET_EXCEPTION_BEHAVIOR` before `UIApplicationMain`; Facebook 581
+is the observed case. `excportfix/l8excport.dylib` has a `com.apple.UIKit`
+filter. It rebinds the four `*_set/swap_exception_ports` imports through the
+GOT, because code patching fails here and dyld ignores `__interpose` in
+dlopen'ed images, and swallows only the calls the kernel would refuse. The app's
+in-process crash reporter is then off and crashes reach ReportCrash; every other
+exception-port call is unchanged. `excportfix/build.sh test` runs the host test
+that loads the guard with `dlopen()`.
+
+Each component's README has its own evidence and limits: `excportfix`,
+`localauthfix`, `personafix`, `filesfix`, `vpnfix`, `rootappfix`,
+`marketplacefix`, `deviceprefs`, `appfix`, `trolldecryptfix`, and
+`launchdhook/SESSION_GUARD.md` for injection and icons.
+
+## Validation notes
 
 Exact-device validation completed PairSetup after an explicit Trust decision,
 then completed PairVerify on a second connection in the same boot without a

@@ -1,0 +1,423 @@
+# iPad 8 (j171aap, iPadOS 26.7.1 / 23H30) — полная инструкция
+
+От файла IPSW до загруженной системы, твиков и проверки магазина приложений.
+Ветка: `claude/quirky-meitner-fjokhj` в `gru2007/Liter8-iPad8`.
+
+> **Внимание.**
+> - Шаг 6 (`restore-cfw`) **стирает iPad полностью**. Отката нет.
+> - Загрузка привязанная (tethered): iPad стартует только с Mac через pwn DFU,
+>   каждый раз.
+> - `restore-cfw` получает APTicket у Apple во время восстановления. Если Apple
+>   уже не подписывает 23H30 для iPad11,6, восстановление не пройдёт. Проверь
+>   подпись (например, на ipsw.me) до начала.
+> - Профиль экспериментальный: каждой команде `fw` нужен `--experimental`.
+
+Обозначения ниже: `$B` = `.build/release/liter8`, `$W` = рабочая папка,
+`$SRC` = распакованный IPSW внутри неё.
+
+---
+
+## Часть 1. Подготовка Mac (один раз)
+
+### 1.1. Инструменты
+
+macOS 14+, Xcode Command Line Tools со Swift 6, Homebrew.
+
+```sh
+brew install \
+  sevenzip blacktop/tap/ipsw gnu-tar coreutils zstd ldid-procursus sshpass autoconf automake libtool pkg-config \
+  libimobiledevice libimobiledevice-glue libirecovery libusbmuxd libplist libtatsu libzip curl
+```
+
+`irecovery` берётся из PATH (его ставит `libirecovery`); `--irecovery` нужен,
+только чтобы указать другой бинарник.
+
+### 1.2. iOS SDK
+
+Вспомогательные бинарники для устройства собираются под iPhoneOS SDK. Если
+стоит полный Xcode, ничего делать не нужно. Если только Command Line Tools,
+нужен распакованный SDK (например, из Theos) и переменная:
+
+```sh
+export LITER8_IOS_SDK=/path/to/iPhoneOS.sdk
+```
+
+Держи её выставленной во всех следующих шагах (её читают `provision` и
+`tweaks`: они собирают все твики и вспомогательные бинарники из исходников).
+
+### 1.3. Сборка Liter8
+
+```sh
+git clone --recurse-submodules -b claude/quirky-meitner-fjokhj https://github.com/gru2007/Liter8-iPad8.git
+cd Liter8-iPad8
+make setup
+make release
+B=.build/release/liter8
+$B preflight          # проверит, что все инструменты на месте и запускаются
+```
+
+Проверка, что новые планы ядра на месте:
+
+```sh
+$B 2>&1 | grep -A3 'kernel '
+# должно быть: ... ppl-allow-invalid, vm-fault-cs-bypass, vm-map-protect, ... boot-jit ...
+$B profiles | grep -A4 ios26-23H30-j171aap
+# должна быть строка kernel-codesign-invalid
+```
+
+### 1.4. Железо
+
+Твой транспорт usbliter8 для T8020 (`usbliter8ctl` вызывается автоматически,
+когда iPad в pwn DFU).
+
+---
+
+## Часть 2. IPSW: распаковка (на Mac, без устройства)
+
+```sh
+export W="$PWD/.liter8-ipad8-23H30"
+export WORK_DIR="$W"
+
+$B fw prepare --experimental --file /path/to/iPad_10.2_2020_26.7.1_23H30_Restore.ipsw
+```
+
+`prepare` читает `BuildManifest.plist` (имя файла неважно), выбирает профиль
+`ipad11,6-j171aap-23H30` и распаковывает IPSW в:
+
+```sh
+export SRC="$W/iPad11,6_26.7.1_23H30_Restore"
+ls "$SRC"/kernelcache.*        # kernelcache.release.ipad11b
+```
+
+IPSW общий для Wi-Fi (j171aap) и Cellular (j172aap), но профиль есть только
+для j171aap, поэтому `--board` не нужен. Можно указать явно: `--board j171aap`.
+
+---
+
+## Часть 3. Проверки до устройства
+
+Патчи code signing перенесены из palera1n KPF для T8020. На стоковом
+kernelcache 23H30 каждый находит ровно одно место, а `boot-jit` даёт 123 записи
+(118 из `boot-public` плюс пять). При несовпадении паттерна ничего не
+патчится (`no candidate`), но тогда `get-boot` остановится, пока это не
+исправить.
+
+### 3.1. Патчи ядра против твоего kernelcache
+
+```sh
+$B im4p extract "$SRC/kernelcache.release.ipad11b" kc.raw
+
+$B resolve kernel ppl-allow-invalid  kc.raw
+$B resolve kernel vm-fault-cs-bypass kc.raw
+$B resolve kernel vm-map-protect     kc.raw
+$B resolve kernel boot-jit           kc.raw     # boot-public + три патча выше
+$B resolve kernel boot-public        kc.raw     # обычный план, должен давать 118 записей
+```
+
+Для каждого:
+- **напечатались записи** — паттерн совпал;
+- **`no candidate`** — этого варианта нет в ядре. Пришли мне окно
+  дизассемблера (ниже), я добавлю нужный вариант;
+- **`ambiguous candidate`** — совпадений несколько, пришли смещения.
+
+Окно дизассемблера, если что-то не нашлось:
+
+```sh
+# например, для PPL: найти строки вокруг создания pmap и дизассемблировать рядом
+$B inspect kc.raw strings pmap_create
+$B inspect kc.raw dis <смещение> 80
+```
+
+Точные байты закреплены фикстурой
+`fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json` (рядом с
+`kernel-boot-public`). Сверить свой kernelcache:
+
+```sh
+$B verify fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json kc.raw
+```
+
+### 3.2. Место в заголовках демонов (иначе provisioning остановится)
+
+Upstream при provisioning дописывает weak-load своих библиотек в `coreauthd`,
+`lockdownd` и `remotepairingdeviced`. Для этого в заголовке Mach-O нужно
+48–56 свободных байт. У launchd на 23H30 их было только 40 (поэтому хук стал
+`/usr/lib/lhook`). Проверь заранее на образе системы:
+
+```sh
+ipsw mount fs /path/to/iPad_10.2_2020_26.7.1_23H30_Restore.ipsw
+# запомни, куда смонтировалось, дальше это $SYS
+
+P=device/launchdhook/patch_launchd.py
+python3 $P "$SYS/System/Library/Frameworks/LocalAuthentication.framework/Support/coreauthd" --path /usr/lib/l8coreauth.dylib
+python3 $P "$SYS/usr/libexec/lockdownd" --path /usr/lib/l8pair.dylib
+python3 $P "$SYS/usr/libexec/remotepairingdeviced" --path /usr/lib/l8remotepairing.dylib
+```
+
+Это только отчёт, ничего не пишется. `[+] fits` — всё хорошо. Если где-то
+`needs N bytes, only M available` — **пришли вывод до provisioning**, я
+укорочу пути так же, как для lhook.
+
+---
+
+## Часть 4. CFW и восстановление (стирает iPad)
+
+```sh
+$B fw make-cfw --experimental
+```
+
+iPad в pwn DFU, затем:
+
+```sh
+$B fw restore-cfw --experimental
+```
+
+Проверяет CFW, поднимает локальный TSS-прокси, ловит APTicket
+(`$W/apticket.im4m`) и восстанавливает. Ожидаемый финал: `Status: Restore Finished`.
+
+---
+
+## Часть 5. SSH ramdisk и provisioning
+
+iPad снова в pwn DFU:
+
+```sh
+$B fw get-rd  --experimental
+$B fw boot-rd --experimental
+```
+
+Когда iPad в SSHRD:
+
+```sh
+$B fw bootstrap      --experimental --check
+$B fw bootstrap      --experimental
+$B fw prepare-rootfs --experimental
+$B fw provision      --experimental --check
+$B fw provision      --experimental
+$B fw unmount-rootfs --experimental
+```
+
+Provisioning ставит в том числе новый `lhook` (инъекция со sandbox-extension)
+и модифицированный launchd. Preboot выбирается по APFS-роли (на iPad это
+`disk1s5`, а не `disk1s6`).
+
+После слияния с upstream шаг provisioning `tweaks` — общий для всех
+устройств: он ставит загрузчик ElleKit, `l8localauth` и `l8persona` и оставляет
+их выключенными до включения маркеров.
+
+Набор iPad 8 из `device/tweaks.list` (фикс Facebook `l8excport`, иконки,
+«Файлы», Karing VPN, iCleaner, вспомогательные бинарники и диагностика
+`csprobe`, `personainfo`, `l8lsreg`, плюс переключатели по умолчанию, включая
+`localauth` и `persona`) больше не входит в provisioning по умолчанию: его
+ставит `fw tweaks` после загрузки (часть 6), с проверкой хешей. Поставить его
+ещё из SSHRD можно явно: `./fetch_payloads.sh fixes`, затем
+`./sshrd_provision.sh fixes` (каталог `payload/fixes`).
+
+---
+
+## Часть 6. Обычная загрузка
+
+iPad в pwn DFU:
+
+```sh
+$B fw get-boot --experimental
+$B fw boot     --experimental
+```
+
+**Патчи code signing теперь включены автоматически** (после слияния с
+upstream — для всех профилей): `get-boot` сам строит ядро по плану `boot-jit`
+и пишет в консоль `kernel plan boot-jit`. Флага `--tweaks` больше нет. Это отключает проверку
+изменённого кода для всех процессов системы (PPL allow-invalid,
+`vm_fault_enter`, `vm_map_protect`).
+
+Два переключателя на случай проблем:
+- `$B fw get-boot --experimental --no-tweaks` — ядро без патчей code signing
+  (`boot-public`). Это путь восстановления, если с `boot-jit` система не
+  грузится, и способ сделать первую «эталонную» загрузку.
+- Если в части 3.1 какой-то резолвер дал `no candidate`, `get-boot` без
+  `--no-tweaks` остановится с этой ошибкой и ничего не соберёт. Это защита:
+  лучше остановиться, чем собрать ядро наполовину.
+
+Совет: в самый первый раз можно загрузиться с `--no-tweaks`, убедиться, что
+система стабильна (SSH, SpringBoard, приложения), и только потом пересобрать
+без флага. Тогда, если что-то сломается, ты точно знаешь, что виновато ядро.
+
+После загрузки:
+
+```sh
+$B fw finalize --experimental --check
+$B fw finalize --experimental
+$B fw finalize --experimental --check
+```
+
+Затем один раз поставь ElleKit через Sileo (он даёт
+`/var/jb/usr/lib/TweakLoader.dylib`) и **после каждой загрузки**, когда
+появился интерфейс:
+
+```sh
+$B fw tweaks --experimental --check   # что активно, ничего не меняет
+$B fw tweaks --experimental
+```
+
+`fw tweaks` пересобирает твики из исходников и докатывает изменённые файлы на
+устройство (Data-том, SSHRD не нужен), включает инъекцию на эту загрузку
+(`lhookctl enable`), выдаёт токен Karing, восстанавливает ответы eligibility для
+Marketplace, настройки устройства и адаптеры NewTerm/Sileo/TrollDecrypt, если
+обновление пакета их откатило, перезапускает только нужные демоны (иконки,
+FileProvider, службы установки) и делает respring. Повторный запуск в ту же
+загрузку безопасен и почти ничего не делает.
+
+---
+
+## Часть 7. Тесты на устройстве
+
+Дальше всё по SSH на iPad.
+
+### 7.1. Какое ядро загружено
+
+```sh
+uname -a                 # должно содержать PATCHED_ARM64_T8020
+```
+
+На Mac в `$W/Ramdisk/liter8-boot.json` поле `"kernelPlan"` показывает
+`boot-jit` или `boot-public`.
+
+### 7.2. csprobe: работает ли изменение кода
+
+`csprobe` делает ровно то, что делает хук C-функции: делает свою страницу
+кода записываемой, переписывает инструкцию и выполняет её. Provisioning уже
+положил его в `/var/jb/usr/bin`.
+
+```sh
+# на Mac, во втором окне, пока идёт тест
+idevicesyslog | grep -iE "CODE ?SIGNING|Invalid Page|cs_invalid|pmap"
+
+# на iPad
+/var/jb/usr/bin/csprobe
+```
+
+Как читать:
+- `[csprobe] PASS` — изменённый код выполнился, ядро готово.
+- `FAIL stage1` — `vm_map_protect` не дал RWX.
+- `FAIL stage3` — не дал вернуть исполнение после записи.
+- процесс убит после `stage1 ... ok` — не сработал `vm_fault_enter` и/или PPL
+  allow-invalid. Строка в логе подскажет какой (`pmap` — PPL).
+
+**Пришли вывод csprobe и строки из лога.**
+
+### 7.3. Твики
+
+Всё делает `fw tweaks` (часть 6). Проверить:
+
+```sh
+$B fw tweaks --experimental --check     # на Mac: файлы, переключатели, инъекция, демоны
+touch /var/jb/.lhook_debug              # на iPad, по желанию: лог инъекции
+tail -50 /var/jb/tmp/lhook.log          # дошёл ли lhook до процесса
+```
+
+Проверь два твика: один только с ObjC-хуками, один с хуком C-функции. Если
+второй раньше падал, а теперь работает — патчи code signing сделали своё.
+
+Важно: code signing отключён ядром для всех процессов, но инъекция твиков
+по-прежнему не идёт в жёстко запрещённые процессы (`launchd`, `amfid`,
+`trustd`, `securityd`, `configd`, `notifyd`, `logd`, `opendirectoryd`,
+`keybagd`, `watchdogd`, `dropbear`, `sshd`) и в список из
+`/var/jb/etc/lhook.deny`. Это защита от незагружаемого устройства, её не
+убираем.
+
+Переключатели (файлы-маркеры root 0600 в `/var/jb`) меняются с Mac:
+
+```sh
+python3 device/liter8_tweaks.py disable files     # выключить
+python3 device/liter8_tweaks.py enable rootapps   # включить
+```
+
+| Переключатель | Что делает | По умолчанию |
+| --- | --- | --- |
+| `localauth` | `l8localauth`: подтверждения паролем без SEP | вкл |
+| `persona` | `l8persona`: persona при установке приложений | вкл |
+| `files` | `l8files`: «На iPad» в «Файлах» | вкл |
+| `vpn` | `l8vpn` + токен Karing на каждую загрузку | вкл |
+| `marketplace` | ответы eligibility для Marketplace | вкл |
+| `deviceprefs` | баннер SRD, AirDrop «Для всех» без лимита | вкл |
+| `apps` | адаптеры NewTerm, подпись Sileo, TrollDecrypt, откат прокси iCleaner | вкл |
+| `rootapps` | `l8rootapps`: iCleaner от root (перезапуск runningboardd) | выкл |
+
+`l8excport` (Facebook и другие приложения со своим crash reporter) и `l8icons`
+(иконки rootless-приложений) работают всегда.
+
+### 7.4. Пароль (подтверждения в магазине и не только)
+
+`l8localauth` переводит отказ ACM `-3` (без SEP пароль проверить нечем) в
+«пароль не задан», и интерфейс идёт по ветке без пароля. Он стоит и включён
+после provisioning, загружается после `fw tweaks`. Проверь любой запрос пароля.
+
+### 7.5. Магазин приложений
+
+Попробуй установку. Если падает — сними лог на Mac:
+
+```sh
+idevicesyslog | grep -iE "LocalAuthentication|ACM|distribution|install|persona|usermanager"
+```
+
+Если ошибки пароля больше нет, а установка всё равно не идёт, упираемся в
+persona (7.6).
+
+### 7.6. Persona: установка из альтернативных магазинов
+
+Без SEP usermanagerd не создаёт personal persona, поэтому разрешение persona
+при установке падает, и installcoordinationd пишет `Client provided invalid
+persona for <bundle> : <причина>`. `l8persona` — твик для `installd` и
+`installcoordinationd`: если штатное разрешение упало и personal persona нет,
+он берёт ветку, которую MobileInstallation использует на Shared iPad
+(`CONTAINER_PERSONA_PRIMARY`). Это обход только для установки. 7 октября 2026
+года на iPad11,6 / 23H30 подтверждена установка AltStore Marketplace после
+включения этого обхода, `l8localauth` и изменения eligibility. Это проверка
+конкретной установки, а не подтверждение совместимости всех приложений.
+
+Все три части теперь входят в `fw tweaks`: он перезапускает службы установки с
+твиками и, если eligibilityd сбросил ответы, записывает их снова (исходный
+plist сохраняется в `/var/jb/var/backups/marketplace-ДАТА-ВРЕМЯ`). Повтори
+установку с сайта, подтверди её в системном окне и сними лог:
+
+```sh
+idevicesyslog | grep -iE "l8persona|persona|installcoordination|installd"
+```
+
+`l8persona: installed in pid N` — твик загрузился; `resolved ... to
+com.apple.containermanager.primary-persona` — сработал обход.
+
+Подробности, откат и необязательная блокировка кэша eligibility:
+[Marketplace repair](../../device/marketplacefix/README.md).
+
+Состояние persona (только читает):
+
+```sh
+/var/jb/usr/bin/personainfo
+cat /var/logs/usermanagerd_init.log /var/logs/usermanagerd.log
+ls -la /private/var/keybags/
+```
+
+Вывод этих трёх команд нужен для настоящего исправления persona в
+usermanagerd.
+
+---
+
+## Часть 8. Откат
+
+| Что выключить | Как |
+| --- | --- |
+| Патчи code signing | `fw get-boot --experimental --no-tweaks`, затем `fw boot` |
+| Инъекцию твиков | `lhookctl disable` на iPad (или просто перезагрузка без `fw tweaks`) |
+| Любой фикс из таблицы 7.3 | `python3 device/liter8_tweaks.py disable ИМЯ` |
+| Ответы eligibility | `python3 device/liter8_tweaks.py eligibility restore /var/jb/var/backups/marketplace-ДАТА-ВРЕМЯ` |
+| Адаптеры NewTerm и подпись Sileo | `python3 device/liter8_tweaks.py restore-apps` |
+| Лог инъекции | `rm /var/jb/.lhook_debug` |
+
+---
+
+## Что прислать мне
+
+1. Вывод трёх проверок заголовков из части 3.2.
+2. Вывод `csprobe` и строки `idevicesyslog` (часть 7.2).
+3. Лог попытки установки магазина (часть 7.5).
+4. Лог установки с `l8persona`, вывод `personainfo` и логи usermanagerd (часть 7.6).

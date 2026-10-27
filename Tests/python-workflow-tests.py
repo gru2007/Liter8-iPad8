@@ -32,6 +32,12 @@ from boot_artifacts import (  # noqa: E402
     publish_directory,
     ticket_from_environment,
     write_boot_manifest,
+    verify_task_access_records,
+)
+from device_boot import (  # noqa: E402
+    boot as boot_device,
+    selected_firmware_sequence,
+    validate_boot_set,
 )
 # What the j171aap profile will declare: A12/PPL, no SPTM and so no PMP or WCH.
 J171AAP_OPTIONAL = frozenset({"Ap,SecurePageTableMonitor", "PMP", "WCHFirmwareUpdater"})
@@ -1360,6 +1366,26 @@ class ContextTests(unittest.TestCase):
                 ):
                     selected_firmware_sequence(partial, "restore")
 
+    def test_the_j171aap_profile_declares_exactly_the_tested_optional_set(self):
+        """J171AAP_OPTIONAL stands in for the Swift profile, so it must match it.
+
+        Source-level only: it ties these tests to what IPSWManifest.swift
+        declares, and that every other profile declares nothing optional.
+        """
+        source = (SCRIPTS.parent / "Sources/Liter8Core/Firmware/IPSWManifest.swift").read_text()
+        registry = source.split("public enum DeviceWorkflowRegistry", 1)[1]
+        blocks = re.split(r"\n\s*DeviceWorkflowProfile\(\n", registry)[1:]
+        declared = {}
+        for block in blocks:
+            profile_id = re.search(r'id: "([^"]+)"', block)[1]
+            optional = re.search(r"optionalPassthroughFirmware: \[(.*?)\]", block, re.S)
+            declared[profile_id] = frozenset(
+                re.findall(r'"([^"]+)"', optional[1]) if optional else ())
+        self.assertEqual(declared.pop("ipad11,6-j171aap-23H30"), J171AAP_OPTIONAL)
+        self.assertTrue(declared)
+        for profile_id, optional in declared.items():
+            self.assertEqual(optional, frozenset(), profile_id)
+
     def test_rejects_an_optional_list_naming_firmware_that_is_not_passthrough(self):
         """A typo in a profile must fail loudly rather than widen nothing."""
         components = {name: name for name, _, _ in PASSTHROUGH_IMG4}
@@ -1401,6 +1427,28 @@ class ContextTests(unittest.TestCase):
         for mode, static in (("normal", False), ("restore", True), ("restore", False)):
             self.assertIn("RestoreTrustCache.img4", names(mode, static))
             self.assertNotIn("StaticTrustCache.img4", names(mode, static))
+
+    def test_no_tweaks_is_the_only_way_back_to_the_conservative_plans(self):
+        # fw get-boot always writes the switch as 0 or 1; --no-tweaks is the
+        # recovery path for a wrong code-signing patch on a new build.
+        cases = [
+            ({}, True, ("boot-jit", "boot-permissive")),
+            ({"LITER8_DISABLE_TWEAK_HOOKS": "0"}, True, ("boot-jit", "boot-permissive")),
+            ({"LITER8_DISABLE_TWEAK_HOOKS": "1"}, True, ("boot-public", "boot")),
+            ({"LITER8_DISABLE_TWEAK_HOOKS": "0"}, False, ("boot-jit", None)),
+            ({"LITER8_DISABLE_TWEAK_HOOKS": "1"}, False, ("boot-public", None)),
+            # The flag this replaced no longer exists, so it must not matter.
+            ({"LITER8_ENABLE_TWEAK_HOOKS": "1", "LITER8_DISABLE_TWEAK_HOOKS": "1"}, False,
+             ("boot-public", None)),
+        ]
+        for environment, patch_txm, expected in cases:
+            with patch.dict(os.environ, environment, clear=True):
+                self.assertEqual(normal_boot_plans(patch_txm=patch_txm), expected, environment)
+
+    def test_rejects_an_unexpected_tweak_hook_switch(self):
+        with patch.dict(os.environ, {"LITER8_DISABLE_TWEAK_HOOKS": "yes"}, clear=True):
+            with self.assertRaisesRegex(WorkflowError, "must be 0 or 1"):
+                normal_boot_plans(patch_txm=True)
 
     def test_rejects_partial_sptm_txm_boot_chain(self):
         components = {name: name for name, _, _ in PASSTHROUGH_IMG4}
@@ -1595,6 +1643,29 @@ class MeasureGuardsTests(unittest.TestCase):
             with self.assertRaises(WorkflowError) as raised:
                 measure_guards.measure(Path(scratch))
             self.assertIn("sbin/launchd", str(raised.exception))
+
+
+class TaskAccessBootRecordsTests(unittest.TestCase):
+    def test_stale_release_records_are_rejected(self):
+        from types import SimpleNamespace
+        root = SCRIPTS.parent
+        manifest = json.loads((root / "fixtures/23H30/j171aap/kernel-boot-jit-j171aap-23H30.json").read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            path = state / "patch-records/boot-kernel.json"
+            path.parent.mkdir()
+            context = SimpleNamespace(state=state, profile_id="ipad11,6-j171aap-23H30")
+            records = manifest["expectedPatches"]
+            path.write_text(json.dumps(records))
+            verify_task_access_records(context, "boot-jit")
+            for damaged in ([r for r in records if not r["id"].startswith("kernel.task-access.")],
+                            [r for r in records if r["id"] != "kernel.task-access.conversion.1"]):
+                path.write_text(json.dumps(damaged))
+                with self.assertRaises(WorkflowError):
+                    verify_task_access_records(context, "boot-jit")
+            verify_task_access_records(context, "boot-public")
+            context.profile_id = "iphone11-n104ap-24A435"
+            verify_task_access_records(context, "boot-jit")
 
 
 if __name__ == "__main__":

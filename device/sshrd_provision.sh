@@ -47,6 +47,8 @@ usage() {
     echo "  resolv   write /private/etc/resolv.conf so CLI DNS works"
     echo "  apps     copy the 50 removable system apps into /Applications"
     echo "  verify   check the end state"
+    echo "opt-in, never part of the default run:"
+    echo "  fixes    install the iPad 8 tweaks.list set into /var/jb (payload/fixes; see tweaks.list)"
     exit 0
 }
 
@@ -1273,6 +1275,75 @@ mv -f /mnt2/jb/usr/bin/ddiwatch.usbl8r-new /mnt2/jb/usr/bin/ddiwatch
     ok "uicache (iOS 27 containerized registration)"
 fi
 
+# ------------------------------------------------------------------- fixes
+# The iPad 8 fixes list (tweaks.list): its ElleKit tweaks and filters
+# (Facebook's exception-port guard, icons, Files, VPN, iCleaner), the helpers
+# the per-boot activation runs, the diagnostics and the default switches.
+# Opt-in: measured on iPad11,6 / 23H30 only, and l8excport and l8icons carry no
+# device guard, so it is never part of the default run. `liter8 fw tweaks`
+# installs the same set over SSH after a normal boot; this step is for doing it
+# from SSHRD instead. They stay inert until ElleKit is installed and lhookctl
+# enables injection.
+tweak_device_path() {
+    printf '/mnt2/jb/%s' "${1#/var/jb/}"
+}
+
+if wants fixes && [ "$CHECK_ONLY" = 0 ]; then
+    say "iPad 8 fixes (tweaks.list)"
+    T_DIR=payload/fixes
+    [ -s "$T_DIR/MANIFEST" ] && [ -f "$T_DIR/MARKERS" ] \
+        || die "missing $T_DIR/MANIFEST; run ./fetch_payloads.sh fixes"
+    mkdir -p payload/.work/fixes
+
+    # Check every staged file against the manifest before any device write.
+    T_DIRS=""
+    while read -r t_sha t_mode t_path t_staged <&3; do
+        [ -f "$T_DIR/$t_staged" ] || die "$T_DIR/$t_staged is missing"
+        [ "$(shasum -a 256 "$T_DIR/$t_staged" | awk '{print $1}')" = "$t_sha" ] \
+            || die "$T_DIR/$t_staged does not match its manifest hash"
+        T_DIRS="$T_DIRS '$(dirname "$(tweak_device_path "$t_path")")'"
+    done 3< "$T_DIR/MANIFEST"
+    must_dev "mkdir -p $T_DIRS && echo DONE_OK" "could not create the tweak directories"
+
+    # Same-directory staging, then one rename per file, then a hash readback.
+    while read -r t_sha t_mode t_path t_staged <&3; do
+        t_dev=$(tweak_device_path "$t_path")
+        put "$T_DIR/$t_staged" "$t_dev.liter8-new"
+        must_dev "
+chmod $t_mode '$t_dev.liter8-new'
+mv -f '$t_dev.liter8-new' '$t_dev'
+echo DONE_OK
+" "could not activate $t_path"
+        sh_dev "/bin/cat '$t_dev'" > payload/.work/fixes/readback \
+            || die "could not read back $t_path"
+        [ "$(shasum -a 256 payload/.work/fixes/readback | awk '{print $1}')" = "$t_sha" ] \
+            || die "$t_path readback hash mismatch"
+        ok "$t_path"
+    done 3< "$T_DIR/MANIFEST"
+
+    # Default switches only on the first pass: a marker the owner removed later
+    # must stay removed when provisioning is repeated to top up a device.
+    T_STATE=/mnt2/jb/etc/liter8/markers-initialized
+    if sh_dev "[ -f '$T_STATE' ]"; then
+        skip "switches already initialized; left as they are"
+    else
+        T_CREATE=""
+        while read -r m_name m_path m_default <&3; do
+            [ "$m_default" = on ] || continue
+            m_dev=$(tweak_device_path "$m_path")
+            T_CREATE="$T_CREATE
+: > '$m_dev' && chmod 0600 '$m_dev' || exit 1"
+        done 3< "$T_DIR/MARKERS"
+        must_dev "
+mkdir -p /mnt2/jb/etc/liter8 || exit 1
+$T_CREATE
+: > '$T_STATE' && chmod 0644 '$T_STATE' || exit 1
+echo DONE_OK
+" "could not create the default tweak switches"
+        ok "default switches on: $(awk '$3 == "on" {printf "%s ", $1}' "$T_DIR/MARKERS")"
+    fi
+fi
+
 # ----------------------------------------------------------------- bundles
 # Sileo comes from payload/, built by fetch_payloads.sh from the upstream
 # release. It used to be scraped off the device (installed via dpkg, then pulled
@@ -1756,6 +1827,31 @@ fi
 note "l8boot System" "$l8boot_state"
 note "sbextissue System"  "$(sh_dev '[ -x /mnt1/usr/local/bin/sbextissue ] && echo present || echo ABSENT' | tr -d '\r')"
 note "pfruntimeprobe"     "$(sh_dev '[ -x /mnt2/jb/usr/bin/pfruntimeprobe ] && echo present || echo ABSENT' | tr -d '\r')"
+
+# Reported only where the iPad 8 fixes set was built: it is opt-in, so its
+# absence on any other device is the expected state, not a finding.
+if [ -s payload/fixes/MANIFEST ]; then
+    tweaks_total=0
+    tweaks_bad=""
+    mkdir -p payload/.work/fixes
+    while read -r t_sha t_mode t_path t_staged <&3; do
+        tweaks_total=$((tweaks_total + 1))
+        sh_dev "/bin/cat '$(tweak_device_path "$t_path")'" \
+            > payload/.work/fixes/verify 2>/dev/null || true
+        if [ ! -s payload/.work/fixes/verify ] || \
+           [ "$(shasum -a 256 payload/.work/fixes/verify | awk '{print $1}')" != "$t_sha" ]; then
+            tweaks_bad="$tweaks_bad ${t_path##*/}"
+        fi
+    done 3< payload/fixes/MANIFEST
+    if [ -z "$tweaks_bad" ]; then
+        note "tweaks.list payload" "$tweaks_total files OK"
+    else
+        note "tweaks.list payload" "MISMATCH$tweaks_bad"
+    fi
+    while read -r m_name m_path m_default <&3; do
+        note "switch $m_name" "$(sh_dev "[ -f '$(tweak_device_path "$m_path")' ] && echo on || echo off" | tr -d '\r')"
+    done 3< payload/fixes/MARKERS
+fi
 
 if [ -f payload/uicache ]; then
     expected_uicache=$(shasum -a 256 payload/uicache | awk '{print $1}')

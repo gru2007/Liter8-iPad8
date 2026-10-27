@@ -167,7 +167,8 @@ struct Firmware: ParsableCommand {
         abstract: "Firmware preparation and the device workflow.",
         discussion: """
         Runs in this order for a fresh device: prepare, make-cfw, restore-cfw, \
-        get-rd, boot-rd, provision, get-boot, boot, finalize. `liter8 fw actions` \
+        get-rd, boot-rd, provision, get-boot, boot, finalize, then tweaks after \
+        every boot. `liter8 fw actions` \
         lists the action names a script can pass.
         """,
         subcommands: [
@@ -187,6 +188,7 @@ struct Firmware: ParsableCommand {
             Provision.self,
             Finalize.self,
             SetupShell.self,
+            Tweaks.self,
             SetupDebugger.self,
         ]
     )
@@ -345,6 +347,21 @@ struct Firmware: ParsableCommand {
         )
         var ticket: String?
 
+        // Every normal boot is built for runtime function hooks (kernel
+        // boot-jit, TXM boot-permissive where there is a TXM). This is the one
+        // way back to the conservative plans, for when a code-signing patch is
+        // wrong on a new build. It is baked into the normal-boot kernelcache,
+        // so it is meaningful only for get-boot.
+        @Flag(
+            name: .customLong("no-tweaks"),
+            help: """
+            Build the normal boot without the function-hook plans: kernel \
+            boot-public and TXM boot instead of boot-jit and boot-permissive. \
+            The recovery path when a code-signing patch is wrong.
+            """
+        )
+        var disableTweakHooks = false
+
         @OptionGroup var common: FirmwareCommonOptions
         @OptionGroup var prepared: FirmwarePreparedOptions
         @OptionGroup var serial: SerialConsoleOption
@@ -355,12 +372,16 @@ struct Firmware: ParsableCommand {
                 explicit: ticket, action: "get-boot", workDirectory: common.workDirectoryURL
             )
             // get-boot builds the normal-boot iBoot and DeviceTree, which is
-            // where both halves of the demotion claim live.
+            // where both halves of the demotion claim live. The hook switch is
+            // always written, never merely omitted, for the reason
+            // APDemotionOption gives: an inherited value must not decide.
+            var environment = serial.environment
+                .merging(demotion.environment) { _, new in new }
+            environment["LITER8_DISABLE_TWEAK_HOOKS"] = disableTweakHooks ? "1" : "0"
             try runPreparedFirmwareAction(
                 "get-boot", common: common, prepared: prepared,
                 ticket: resolved,
-                environment: serial.environment
-                    .merging(demotion.environment) { _, new in new }
+                environment: environment
             )
         }
     }
@@ -533,6 +554,26 @@ struct Firmware: ParsableCommand {
         func run() throws {
             try runPreparedFirmwareAction(
                 "setup-shell", common: common, prepared: prepared, environment: check.environment
+            )
+        }
+    }
+
+    struct Tweaks: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Activate every device/tweaks.list fix for this boot.",
+            discussion: """
+            Run after each boot, once the UI is up. Re-syncs the Data-volume \
+            tweaks, enables injection for the current boot session and restarts \
+            the affected daemons. See device/README.md.
+            """
+        )
+        @OptionGroup var common: FirmwareCommonOptions
+        @OptionGroup var prepared: FirmwarePreparedOptions
+        @OptionGroup var check: CheckOnlyOption
+
+        func run() throws {
+            try runPreparedFirmwareAction(
+                "tweaks", common: common, prepared: prepared, environment: check.environment
             )
         }
     }

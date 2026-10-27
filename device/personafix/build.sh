@@ -1,6 +1,7 @@
 #!/bin/sh
 # Build l8persona.dylib, the install-path persona fallback for the SEP-less
-# boot, plus run its host self-test. Ad-hoc signed; no get-task-allow (AMFI
+# boot, plus run its host self-test, and personainfo, the read-only
+# persona/session diagnostic the iPad 8 fixes list installs. Ad-hoc signed; no get-task-allow (AMFI
 # SIGKILLs an ad-hoc binary carrying it). No entitlement: it swizzles one
 # Objective-C method inside installd and installcoordinationd.
 set -e
@@ -44,3 +45,12 @@ otool -L l8persona.dylib | grep -q InstalledContentLibrary \
 codesign -d --entitlements :- l8persona.dylib 2>/dev/null | grep -q get-task-allow \
     && { echo "[!] l8persona carries get-task-allow, AMFI will kill it"; exit 1; }
 echo "[+] l8persona.dylib  $(wc -c < l8persona.dylib | tr -d ' ') bytes"
+
+# Read-only diagnostic (personainfo.c), built last. Like the tweak above, a
+# failure here fails the whole script.
+xcrun clang -isysroot "$SDK" -arch arm64 -arch arm64e \
+    -miphoneos-version-min=15.0 -O2 -Wall -Wextra personainfo.c -o personainfo
+"$LDID" -S -Icom.liter8.personainfo -Cadhoc personainfo
+codesign -d --entitlements :- personainfo 2>/dev/null | grep -q get-task-allow \
+    && { echo "[!] personainfo carries get-task-allow, AMFI will kill it"; exit 1; }
+echo "[+] personainfo  $(wc -c < personainfo | tr -d ' ') bytes"

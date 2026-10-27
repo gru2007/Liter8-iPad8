@@ -121,7 +121,9 @@ def prepared_rootfs(context: Context, environment: dict[str, str]) -> Path:
 def provision() -> None:
     context = Context.load()
     action = os.environ.get("LITER8_FW_ACTION")
-    if action not in {"bootstrap", "provision", "finalize", "setup-shell", "setup-debugger"}:
+    if action not in {
+        "bootstrap", "provision", "finalize", "setup-shell", "setup-debugger", "tweaks",
+    }:
         raise WorkflowError(f"unexpected provisioning action: {action}")
     workflow = prepare_runtime(context)
     check_only = os.environ.get("LITER8_CHECK_ONLY") == "1"
@@ -152,6 +154,15 @@ def provision() -> None:
 
     if action == "finalize":
         execute(workflow / "finalize.sh", check_only=check_only, environment=environment)
+        return
+
+    # Per boot, after the UI is up: every tweaks.list fix is re-synced, enabled
+    # for this boot session and its daemons restarted. See liter8_tweaks.py.
+    if action == "tweaks":
+        arguments: list[object] = [workflow / "liter8_tweaks.py", "activate"]
+        if check_only:
+            arguments.append("--check")
+        run(arguments, environment=environment)
         return
 
     # Swift owns firmware selection and exports this value from the exact

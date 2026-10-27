@@ -24,6 +24,7 @@ enum FirmwareScriptRunner {
         "provision": "device_provision.py",
         "setup-shell": "device_provision.py",
         "setup-debugger": "device_provision.py",
+        "tweaks": "device_provision.py",
         "unmount-rootfs": "rootfs.py",
         "verify-cfw": "verify_cfw.py",
     ]

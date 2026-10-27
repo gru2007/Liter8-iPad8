@@ -64,27 +64,46 @@ public struct KernelBootCompatibilityResolver: Sendable {
     }
 }
 
-/// Opt-in normal-boot plan that also lets running processes modify their own
-/// code pages, which runtime tweak injection (ElleKit function hooks) needs.
+/// Normal-boot plan that also lets running processes modify their own code
+/// pages, which runtime tweak injection (ElleKit function hooks) needs.
 ///
-/// This is `boot-public` plus the code-signing-invalid patches. It is kept
-/// separate because those patches weaken the code-signing guarantee for every
-/// process, so a boot opts into them explicitly rather than getting them in the
-/// reviewed default. The extra records resolve only on a kernel profile that
-/// registers the `kernel-codesign-invalid` variant; on any other kernel those
-/// add nothing.
+/// This is `boot-public` plus the code-signing-invalid patches. They weaken
+/// the code-signing guarantee for every process, so they stay out of
+/// `boot-public`; `fw get-boot` builds this plan unless `--no-tweaks` is given.
+/// The extra records resolve only on a kernel profile that registers the
+/// `kernel-codesign-invalid` variant; on any other kernel those add nothing.
 ///
 /// It also clears the exception-port behavior enforcement byte, because the
 /// trust-cache patches make every app a platform binary and platform binaries
 /// are killed for registering `EXCEPTION_DEFAULT` handlers, which crash SDKs do.
+/// A kernel profile may omit that family (j171aap/23H30 handles it in
+/// userland instead).
+///
+/// On a profile registering `kernel-task-access` (j171aap/23H30 only) the plan
+/// also carries the task-access patches, and the kernel identity records are
+/// retagged so `uname` shows which plan actually booted.
 public struct KernelBootJITResolver: Sendable {
     public static let name = "kernel-boot-jit"
     public init() {}
 
     public func resolve(in image: BinaryImage) throws -> [PatchRecord] {
-        try KernelBootCompatibilityResolver().resolve(in: image)
+        let taskAccess = try KernelTaskAccessResolver.requiredRecords(in: image)
+        var base = try KernelBootCompatibilityResolver().resolve(in: image)
             + KernelCodeSigningResolver.requiredRecords(in: image)
-            + KernelExceptionPortResolver().resolve(in: image)
+            + KernelExceptionPortResolver.compositeRecords(in: image)
+        if !taskAccess.isEmpty {
+            // Same-length version tag lets uname prove that this diagnostic
+            // plan was actually booted, rather than a stale release artifact.
+            base = base.map { record in
+                guard record.id.hasPrefix("kernel.identity.") else { return record }
+                return PatchRecord(id: record.id, component: record.component,
+                    offset: record.offset, originalBytes: record.originalBytes,
+                    replacementBytes: Data("/TASKAC2_ARM64_T8020".utf8),
+                    summary: "Identify the experimental task-access boot in uname",
+                    evidence: record.evidence + ["task-access records included in this boot plan"])
+            }
+        }
+        return base + taskAccess
     }
 }
 
