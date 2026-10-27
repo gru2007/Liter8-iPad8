@@ -22,7 +22,7 @@ int main(int argc,char **argv){
  if(!match || geteuid()==0){execve(original,argv,environ);return 1;}
  char machine[64]={0},build[64]={0};size_t n=sizeof(machine);
  if(sysctlbyname("hw.machine",machine,&n,0,0))return 2;
- n=sizeof(build);if(sysctlbyname("kern.osversion",build,&n,0,0)||strcmp(machine,"iPad11,6")||strcmp(build,"23H30"))return 2;
+ n=sizeof(build);if(sysctlbyname("kern.osversion",build,&n,0,0)||strcmp(machine,"iPad11,6")||(strcmp(build,"23H30")&&strcmp(build,"23H128")))return 2;
  int (*persona)(posix_spawnattr_t *,uid_t,uint32_t)=dlsym(RTLD_DEFAULT,"posix_spawnattr_set_persona_np");
  int (*uid)(posix_spawnattr_t *,uid_t)=dlsym(RTLD_DEFAULT,"posix_spawnattr_set_persona_uid_np");
  int (*gid)(posix_spawnattr_t *,gid_t)=dlsym(RTLD_DEFAULT,"posix_spawnattr_set_persona_gid_np");

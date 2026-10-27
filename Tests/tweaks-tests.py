@@ -276,13 +276,14 @@ class ActivationTests(unittest.TestCase):
         for machine, build in (("iPhone12,1", "24B5110a"), ("iPad11,6", "23H31")):
             device = Booted(machine, build)
             with self.subTest(machine=machine, build=build), redirect_stdout(io.StringIO()):
-                with self.assertRaisesRegex(TweakError, "validated on iPad11,6 / 23H30 only"):
+                with self.assertRaisesRegex(TweakError, "validated on iPad11,6 / 23H30 or 23H128 only"):
                     self.activation(device).preflight()
                 self.assertEqual(device.commands, [])
-        activation = self.activation(Booted("iPad11,6", "23H30"))
-        with redirect_stdout(io.StringIO()):
-            activation.preflight()
-        self.assertTrue(activation.ipad8)
+        for build in ("23H30", "23H128"):
+            activation = self.activation(Booted("iPad11,6", build))
+            with self.subTest(build=build), redirect_stdout(io.StringIO()):
+                activation.preflight()
+            self.assertTrue(activation.ipad8, build)
 
     def test_sync_rewrites_only_what_differs(self):
         device = FakeDevice({"/var/jb/a": b"old", "/var/jb/b": b"same"})

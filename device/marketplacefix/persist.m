@@ -14,7 +14,7 @@ static BOOL supported(void) {
     if(sysctlbyname("kern.osversion",build,&n,NULL,0))return NO;
     n=sizeof(machine);
     return !sysctlbyname("hw.machine",machine,&n,NULL,0) &&
-           !strcmp(build,"23H30") && !strcmp(machine,"iPad11,6");
+           (!strcmp(build,"23H30") || !strcmp(build,"23H128")) && !strcmp(machine,"iPad11,6");
 }
 int main(int argc,char **argv) { @autoreleasepool {
     if(!supported() || geteuid()!=0){fputs("Only root on iPad11,6/23H30 is supported\n",stderr);return 2;}

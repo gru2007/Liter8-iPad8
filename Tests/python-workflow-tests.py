@@ -1417,7 +1417,8 @@ class ContextTests(unittest.TestCase):
             optional = re.search(r"optionalPassthroughFirmware: \[(.*?)\]", block, re.S)
             declared[profile_id] = frozenset(
                 re.findall(r'"([^"]+)"', optional[1]) if optional else ())
-        self.assertEqual(declared.pop("ipad11,6-j171aap-23H30"), J171AAP_OPTIONAL)
+        for profile_id in ("ipad11,6-j171aap-23H30", "ipad11,6-j171aap-23H128"):
+            self.assertEqual(declared.pop(profile_id), J171AAP_OPTIONAL, profile_id)
         self.assertTrue(declared)
         for profile_id, optional in declared.items():
             self.assertEqual(optional, frozenset(), profile_id)
@@ -1700,7 +1701,16 @@ class TaskAccessBootRecordsTests(unittest.TestCase):
                 with self.assertRaises(WorkflowError):
                     verify_task_access_records(context, "boot-jit")
             verify_task_access_records(context, "boot-public")
+            # 23H128 is held to the same check: a stale CLI must not slip past
+            # it because the profile id changed.
+            context.profile_id = "ipad11,6-j171aap-23H128"
+            path.write_text(json.dumps(damaged))
+            with self.assertRaises(WorkflowError):
+                verify_task_access_records(context, "boot-jit")
+            path.write_text(json.dumps(records))
+            verify_task_access_records(context, "boot-jit")
             context.profile_id = "iphone11-n104ap-24A435"
+            path.write_text(json.dumps(damaged))
             verify_task_access_records(context, "boot-jit")
 
 

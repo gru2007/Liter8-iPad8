@@ -64,9 +64,12 @@ TWEAKLOADER = "/var/jb/usr/lib/TweakLoader.dylib"
 SBEXTISSUE = "/usr/local/bin/sbextissue"
 BACKUPS = "/var/jb/var/backups"
 
-# Fixes validated only on this device and build. Their helpers carry the same
-# guard, so this check just avoids running them pointlessly elsewhere.
-IPAD8 = ("iPad11,6", "23H30")
+# Fixes validated only on this device and these builds. Their helpers carry the
+# same guard, so this check just avoids running them pointlessly elsewhere.
+# 23H128 (26.7.2) is the point update of 23H30; its helpers resolve the same
+# symbols and selectors, but the fixes have not been run on it yet.
+IPAD8_MACHINE = "iPad11,6"
+IPAD8_BUILDS = ("23H30", "23H128")
 
 ICON_RESULT = "/private/var/tmp/sbext.iconservicesagent.result"
 INSTALL_JOBS = ("com.apple.installcoordinationd", "com.apple.mobile.installd",
@@ -341,14 +344,14 @@ class Activation:
         self.machine, self.build_id = self.device.out("sysctl -n hw.machine kern.osversion").split()[:2]
         self.boot = self.device.out("sysctl -n kern.bootsessionuuid")
         self.kernel = self.device.out("uname -v")
-        self.ipad8 = (self.machine, self.build_id) == IPAD8
+        self.ipad8 = self.machine == IPAD8_MACHINE and self.build_id in IPAD8_BUILDS
         self.report.line("device", f"{self.machine} {self.build_id}")
         if not self.ipad8:
             # The list is not a set of per-fix opt-ins on other devices: some
             # of its tweaks (l8excport, l8icons) check only the process, so
             # syncing it would change unmeasured behaviour there. Stop before
             # the first write rather than skip the helpers and install the rest.
-            raise TweakError(f"the tweaks.list fixes are validated on iPad11,6 / 23H30 only, "
+            raise TweakError(f"the tweaks.list fixes are validated on iPad11,6 / 23H30 or 23H128 only, "
                              f"not {self.machine} {self.build_id}")
 
     def payload(self) -> list[PayloadFile]:

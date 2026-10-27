@@ -7,6 +7,9 @@ import Foundation
 public struct KernelTaskAccessResolver: Sendable {
     public static let name = "kernel-task-access"
     static let variantKey = "kernel-task-access"
+    /// Kernels this policy was checked on. Each one resolves the same 15
+    /// records (four callbacks, two conversion paths, one out-trans gate).
+    static let reviewedProfiles: Set<String> = ["ios26-23H30-j171aap", "ios26-23H128-j171aap"]
     public init() {}
 
     static func requiredRecords(in image: BinaryImage) throws -> [PatchRecord] {
@@ -17,7 +20,7 @@ public struct KernelTaskAccessResolver: Sendable {
     }
 
     public func resolve(in image: BinaryImage) throws -> [PatchRecord] {
-        guard KernelResolverProfileRegistry.detect(in: image)?.id == "ios26-23H30-j171aap" else {
+        guard let id = KernelResolverProfileRegistry.detect(in: image)?.id, Self.reviewedProfiles.contains(id) else {
             throw PatchfinderError.noCandidate("task-access policy is not reviewed for this kernel")
         }
         let layout = try MachOLayout(image: image)

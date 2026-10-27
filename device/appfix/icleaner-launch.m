@@ -26,7 +26,7 @@ int main(int argc,char **argv){
  os_log_error(OS_LOG_DEFAULT,"l8icleaner: entry uid=%d euid=%d",getuid(),geteuid());
  char machine[64]={0},build[64]={0};size_t n=sizeof(machine);
  if(sysctlbyname("hw.machine",machine,&n,0,0))return 2;
- n=sizeof(build);if(sysctlbyname("kern.osversion",build,&n,0,0)||strcmp(machine,"iPad11,6")||strcmp(build,"23H30"))return 2;
+ n=sizeof(build);if(sysctlbyname("kern.osversion",build,&n,0,0)||strcmp(machine,"iPad11,6")||(strcmp(build,"23H30")&&strcmp(build,"23H128")))return 2;
  const char *target="/var/jb/Applications/iCleaner.app/iCleaner.liter8-real";
  if(argc==2 && !strcmp(argv[1],"--stage")){if(getuid()!=0 || geteuid()!=0 || setgid(0) || setuid(0)) return 2;os_log_error(OS_LOG_DEFAULT,"l8icleaner: root stage ready");char *args[]={(char *)target,NULL};execve(target,args,environ);return 1;}
  argv[0]=(char *)target;

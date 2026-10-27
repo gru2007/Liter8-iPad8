@@ -32,10 +32,13 @@ PASSTHROUGH_IMG4 = [
 
 TRUST_CACHES = {"StaticTrustCache", "RestoreTrustCache"}
 
+# Workflow profiles whose boot-jit kernel carries the task-access records.
+TASK_ACCESS_PROFILES = {"ipad11,6-j171aap-23H30", "ipad11,6-j171aap-23H128"}
+
 
 def verify_task_access_records(context: Context, kernel_plan: str) -> None:
     """Reject an old CLI preparing this diagnostic iPad plan without its patches."""
-    if context.profile_id != "ipad11,6-j171aap-23H30" or kernel_plan != "boot-jit":
+    if context.profile_id not in TASK_ACCESS_PROFILES or kernel_plan != "boot-jit":
         return
     path = context.state / "patch-records" / "boot-kernel.json"
     try:

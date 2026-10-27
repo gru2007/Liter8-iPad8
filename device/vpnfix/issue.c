@@ -13,7 +13,7 @@ int main(int argc,char **argv) {
     char machine[64]={0},build[64]={0};size_t n=sizeof(machine);
     if(argc!=2 || geteuid()!=0 || sysctlbyname("hw.machine",machine,&n,NULL,0))return 2;
     n=sizeof(build);
-    if(sysctlbyname("kern.osversion",build,&n,NULL,0) || strcmp(machine,"iPad11,6") || strcmp(build,"23H30"))return 2;
+    if(sysctlbyname("kern.osversion",build,&n,NULL,0) || strcmp(machine,"iPad11,6") || (strcmp(build,"23H30") && strcmp(build,"23H128")))return 2;
     const char *path=argv[1];
     const char *prefix="/private/var/mobile/Containers/Shared/AppGroup/";
     if(strncmp(path,prefix,strlen(prefix)))return 2;

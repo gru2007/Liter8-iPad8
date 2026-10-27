@@ -43,7 +43,7 @@ static xpc_object_t generate(id self,SEL cmd,id identity,id context,id *actual,N
 __attribute__((constructor))static void start(void){
  char machine[64]={0},build[64]={0};size_t n=sizeof(machine);
  if(geteuid()!=0||sysctlbyname("hw.machine",machine,&n,0,0))return;
- n=sizeof(build);if(sysctlbyname("kern.osversion",build,&n,0,0)||strcmp(machine,"iPad11,6")||strcmp(build,"23H30"))return;
+ n=sizeof(build);if(sysctlbyname("kern.osversion",build,&n,0,0)||strcmp(machine,"iPad11,6")||(strcmp(build,"23H30")&&strcmp(build,"23H128")))return;
  Method m=class_getInstanceMethod(objc_lookUpClass("RBLaunchdInterface"),sel_registerName("jobWithPlist:domain:"));
  if(m && method_getNumberOfArguments(m)==4)originalDomain=(void *)method_setImplementation(m,(IMP)domainJob);
  m=class_getInstanceMethod(objc_lookUpClass("RBLaunchdInterface"),sel_registerName("jobWithPlist:"));

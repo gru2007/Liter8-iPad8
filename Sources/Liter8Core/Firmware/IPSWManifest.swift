@@ -535,6 +535,40 @@ public enum DeviceWorkflowRegistry {
             // workflow profile.
             hasBaseband: false
         ),
+        // iPad 8 Wi-Fi on iPadOS 26.7.2, the point update after 23H30. Every
+        // kernel, iBoot and userland plan resolves the same record ids with the
+        // same original/replacement bytes as 23H30, except for PC-relative and
+        // page-offset fields, at offsets shifted by the new layout. Guards
+        // measured from the 23H128 System volume with `survey --guards`:
+        // launchd and its cache changed, the daemon and Setup method counts
+        // did not. Boot plan copied from 23H30 because iBSS/iBEC resolve at
+        // the same code offsets. Not run on hardware yet. See
+        // docs/runs/IPAD8_J171AAP_23H128.md.
+        DeviceWorkflowProfile(
+            id: "ipad11,6-j171aap-23H128",
+            productVersion: "26.7.2",
+            build: "23H128",
+            productType: "iPad11,6",
+            deviceClass: "j171aap",
+            chipID: 0x8020,
+            boardID: 0x24,
+            extractedDirectoryName: "iPad_10.2_2020_26.7.2_23H128_Restore",
+            validationState: .experimental,
+            launchdSHA256: "5385426b090d98b3ecbb5822e7391ae85f85e7f92ac438ad5fcd497abf399bdb",
+            launchdCacheSHA256: "a7d74278ca1b89d4d39a3ef2ea0d1904428dda2c629049f350a2b0e8947b9945",
+            launchdCacheDaemonCount: 672,
+            setupControllerMethodCount: 58,
+            bootPlan: DeviceBootPlan(
+                normalIBSSAdditionalPlans: [],
+                restoreIBSSAdditionalPlans: [],
+                preservesIM4PCompression: true,
+                normalBootUsesStaticTrustCache: true,
+                optionalPassthroughFirmware: [
+                    "Ap,SecurePageTableMonitor", "PMP", "WCHFirmwareUpdater",
+                ]
+            ),
+            hasBaseband: false
+        ),
     ]
 
     /// Every profile this IPSW could be restored with.

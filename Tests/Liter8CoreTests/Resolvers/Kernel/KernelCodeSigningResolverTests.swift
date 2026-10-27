@@ -445,15 +445,17 @@ final class KernelCodeSigningResolverTests: XCTestCase {
     /// survey, for that profile only. j171aap omits exception-port and Valeria;
     /// every other registered profile still probes them.
     func testSurveySkipsFamiliesTheDetectedProfileOmits() throws {
-        let ipad = try XCTUnwrap(KernelResolverProfileRegistry.profiles.first {
-            $0.id == "ios26-23H30-j171aap"
-        })
-        XCTAssertTrue(KernelOptInResolvers.isUnused(resolver: KernelExceptionPortResolver.name, by: ipad))
-        XCTAssertTrue(KernelOptInResolvers.isUnused(resolver: KernelValeriaResolver.name, by: ipad))
-        XCTAssertFalse(KernelOptInResolvers.isUnused(resolver: KernelTaskAccessResolver.name, by: ipad))
-        XCTAssertFalse(KernelOptInResolvers.isUnused(resolver: KernelPPLAllowInvalidResolver.name, by: ipad))
+        let ipadIDs: Set<String> = ["ios26-23H30-j171aap", "ios26-23H128-j171aap"]
+        let ipads = KernelResolverProfileRegistry.profiles.filter { ipadIDs.contains($0.id) }
+        XCTAssertEqual(Set(ipads.map(\.id)), ipadIDs)
+        for ipad in ipads {
+            XCTAssertTrue(KernelOptInResolvers.isUnused(resolver: KernelExceptionPortResolver.name, by: ipad), ipad.id)
+            XCTAssertTrue(KernelOptInResolvers.isUnused(resolver: KernelValeriaResolver.name, by: ipad), ipad.id)
+            XCTAssertFalse(KernelOptInResolvers.isUnused(resolver: KernelTaskAccessResolver.name, by: ipad), ipad.id)
+            XCTAssertFalse(KernelOptInResolvers.isUnused(resolver: KernelPPLAllowInvalidResolver.name, by: ipad), ipad.id)
+        }
         XCTAssertFalse(KernelOptInResolvers.isUnused(resolver: KernelExceptionPortResolver.name, by: nil))
-        for profile in KernelResolverProfileRegistry.profiles where profile.id != ipad.id {
+        for profile in KernelResolverProfileRegistry.profiles where !ipadIDs.contains(profile.id) {
             XCTAssertFalse(profile.omittedResolvers.contains(KernelExceptionPortResolver.name), profile.id)
             XCTAssertFalse(KernelOptInResolvers.isUnused(resolver: KernelExceptionPortResolver.name, by: profile),
                            profile.id)

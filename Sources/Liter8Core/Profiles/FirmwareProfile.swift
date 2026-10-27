@@ -275,6 +275,41 @@ public enum KernelResolverProfileRegistry {
             // fixture was measured without the kernel record.
             omittedResolvers: [KernelValeriaResolver.name, KernelExceptionPortResolver.name]
         ),
+        KernelResolverProfile(
+            // iPad 8, iPadOS 26.7.2. A new XNU string, so a new profile, even
+            // though it is a point update of the 23H30 kernel: every plan
+            // resolves the same record ids with the same bytes apart from
+            // ADRP/BL/LDR immediates and one moved policy-table pointer, at
+            // offsets shifted by the new layout. The ACM roster reuses the
+            // 23H30 shapes because all 25 still match one distinct function
+            // each; give this build its own variant if one ever has to change.
+            // See docs/runs/IPAD8_J171AAP_23H128.md.
+            id: "ios26-23H128-j171aap",
+            productVersion: "26.7.2",
+            builds: ["23H128"],
+            boards: ["j171aap", "j172aap"],
+            component: "kernelcache.release.ipad11b",
+            embeddedFingerprint: "xnu-12377.162.13.701.45~1/RELEASE_ARM64_T8020",
+            resolverVariants: [
+                "kernel-ppl-trust-cache": ResolverVariantProfile(
+                    signature: "t8020-loaded-trust-cache-v1",
+                    payload: "loaded-trust-cache-true-v1"
+                ),
+                "kernel-credential-manager": ResolverVariantProfile(
+                    signature: "ios26-23H30-acm-v1",
+                    payload: "acm-return-success-v1"
+                ),
+                "kernel-codesign-invalid": ResolverVariantProfile(
+                    signature: "t8020-codesign-invalid-v1",
+                    payload: "codesign-invalid-allow-v1"
+                ),
+                "kernel-task-access": ResolverVariantProfile(
+                    signature: "t8020-task-access-v1",
+                    payload: "macf-task-and-conversion-allow-v1"
+                ),
+            ],
+            omittedResolvers: [KernelValeriaResolver.name, KernelExceptionPortResolver.name]
+        ),
     ]
 
     /// Detect a profile using evidence embedded in the artifact itself.

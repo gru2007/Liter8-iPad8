@@ -73,7 +73,7 @@ __attribute__((constructor)) static void load(void){@autoreleasepool {
     char machine[64]={0},build[64]={0};size_t length=sizeof(machine);
     if(sysctlbyname("hw.machine",machine,&length,NULL,0)||strcmp(machine,"iPad11,6"))return;
     length=sizeof(build);
-    if(sysctlbyname("kern.osversion",build,&length,NULL,0)||strcmp(build,"23H30")||geteuid()!=501)return;
+    if(sysctlbyname("kern.osversion",build,&length,NULL,0)||(strcmp(build,"23H30")&&strcmp(build,"23H128"))||geteuid()!=501)return;
     dlopen("/System/Library/PrivateFrameworks/UserManagement.framework/UserManagement",RTLD_NOW);
     dlopen("/System/Library/Frameworks/ExtensionFoundation.framework/ExtensionFoundation",RTLD_NOW);
     BOOL enc=hook(objc_lookUpClass("_EXPersona"),"encodeWithCoder:",(IMP)exEncode,&oldEXEncode);

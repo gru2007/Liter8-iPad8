@@ -47,6 +47,7 @@ PRs welcome on any of these, especially SEP. The Pro and Pro Max are open too, i
 | Firmware      | Build   | iPad 8 Wi-Fi (`j171aap`) |
 | ------------- | ------- | ------------------------ |
 | iPadOS 26.7.1 | `23H30` | experimental             |
+| iPadOS 26.7.2 | `23H128` | experimental            |
 
 The iPad 8 is an A12, not an A13. CFW restore and the SSH ramdisk work on one, and a normal boot was reported from the iPad 8 development branch; the merged build has not been booted yet. Every `fw` command needs `--experimental` for it. See [the iPad 8 guide (RU)](docs/IPAD8_GUIDE_RU.md) and [the port notes](docs/runs/IPAD8_J171AAP_23H30.md).
 
@@ -163,7 +164,7 @@ The second `--check` is just so you can see it went through.
 
 ### 8. iPad 8 only: fixes, after every boot
 
-On iPad 8 (`iPad11,6` / `23H30`), each time the device has booted and the UI
+On iPad 8 (`iPad11,6` / `23H30` or `23H128`), each time the device has booted and the UI
 is up:
 
 ```sh
@@ -245,6 +246,7 @@ It's all one Swift target. The folders are there so i can find things, nothing m
 - [iPhone 11 beta 4 device run](docs/runs/IOS_27_BETA4_IPHONE11.md)
 - [iPhone 11 `24A446` pairing and watchdog research](docs/runs/IOS_27_24A446_PAIRING_AND_WATCHDOG.md)
 - [iPad 8 `23H30` port notes](docs/runs/IPAD8_J171AAP_23H30.md)
+- [iPad 8 `23H128` (26.7.2) port notes](docs/runs/IPAD8_J171AAP_23H128.md)
 - [iPad 8 tweaks, code signing, passcode and personas](docs/runs/IPAD8_TWEAKS_AND_CODESIGN.md)
 - [iPad 8: полная инструкция от IPSW до тестов (RU)](docs/runs/IPAD8_FULL_GUIDE_RU.md)
 - [Bootstrap and provisioning status](docs/design/BOOTSTRAP_JB_STATUS.md)
