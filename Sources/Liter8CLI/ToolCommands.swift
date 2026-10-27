@@ -250,7 +250,12 @@ struct ACMProbe: ParsableCommand {
             image: BinaryImage(data: artifact.payload),
             variant: variant
         )
-        let exact = reports.filter(\.isExact).count
+        let exactReports = reports.filter(\.isExact)
+        let exact = exactReports.count
+        let distinct = Set(exactReports.compactMap { $0.offsets.first }).count
+        let ordered = zip(exactReports, exactReports.dropFirst()).allSatisfy {
+            $0.0.offsets[0] < $0.1.offsets[0]
+        }
         print("FUNCTION                                     WORDS  RESULT")
         print("-------------------------------------------------------------------")
         for report in reports {
@@ -270,7 +275,10 @@ struct ACMProbe: ParsableCommand {
                 + "\(String(report.recordedWords).padding(toLength: 7, withPad: " ", startingAt: 0))\(result)")
         }
         print("-------------------------------------------------------------------")
-        print("\(exact)/\(reports.count) usable as recorded")
+        print("\(exact)/\(reports.count) exact shapes; \(distinct) distinct exact entries")
+        if distinct != exact || !ordered {
+            print("not resolver-ready: repeated or reordered entries require semantic review")
+        }
     }
 }
 

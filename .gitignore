@@ -49,3 +49,35 @@ device/personafix/l8persona.dylib
 # Host-built/downloaded device payloads; always reproduced by fetch_payloads.sh.
 device/payload/
 .run-ios272b4/
+# Built by the iPad 8 diagnostic and tweak build scripts, reproduced from source.
+device/csprobe/csprobe
+device/personafix/personainfo
+device/filesfix/l8lsreg
+# Explicit Marketplace repair helper; device data/backups never enter Git.
+device/marketplacefix/eligibility
+device/spawnprobe/personaalloc
+.liter8-ipad8-23H30/
+
+/device/marketplacefix/persist
+
+/device/vpnfix/issue
+/device/vpnfix/l8vpn.dylib
+/device/vpnfix/*.build
+
+/device/filesfix/l8files.dylib
+
+/device/deviceprefs/prefs
+
+/device/appfix/icleaner-launch
+/device/appfix/newterm-login
+
+/device/rootappfix/l8rootapps.dylib
+/device/appfix/newterm-helper
+/device/taskprobe/taskprobe
+/device/taskprobe/l8selfdump.dylib
+
+# Original third-party executables saved before launch-signature repair.
+.liter8-trolldecrypt-backups/
+/device/excportfix/l8excport.dylib
+/device/launchdhook/l8icons.dylib
+/device/trolldecryptfix/writer

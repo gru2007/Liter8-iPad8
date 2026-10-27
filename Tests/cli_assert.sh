@@ -94,6 +94,11 @@ expect_help "fw get-rd --help names --serial"        "--serial" fw get-rd --help
 expect_help "fw provision --help names --rootfs"     "--rootfs" fw provision --help
 expect_help "fw prepare --help names --file"         "--file" fw prepare --help
 expect_help "fw setup-debugger --help names --check" "--check" fw setup-debugger --help
+expect_help "fw --help lists tweaks"                 "tweaks" fw --help
+expect_help "fw tweaks --help names --check"         "--check" fw tweaks --help
+expect_help "fw get-boot --help names --no-tweaks"   "--no-tweaks" fw get-boot --help
+expect_help "apply --help names --preserve-compression" "--preserve-compression" apply --help
+expect_help "im4p repack --help names --preserve-compression" "--preserve-compression" im4p repack --help
 expect_help "resolve --help names <component>"       "component" resolve --help
 expect_help "apply --help names --records-out"       "--records-out" apply --help
 expect_help "inspect --help lists the modes"         "pattern-at" inspect --help
@@ -132,6 +137,9 @@ expect_fail "fw make-cfw rejects the retired --keep-fdr"      fw make-cfw --keep
 expect_fail "fw prepare rejects --check"         fw prepare --check
 expect_fail "fw boot rejects --ticket"           fw boot --ticket /tmp/t
 expect_fail "fw boot rejects --sshrd-payload"    fw boot --sshrd-payload /tmp/s
+expect_fail "fw boot rejects --tweaks"           fw boot --tweaks
+expect_fail "fw get-rd rejects --no-tweaks"      fw get-rd --no-tweaks
+expect_fail "fw get-boot rejects the retired --tweaks" fw get-boot --tweaks
 
 print -r -- ""; print -r -- "== read-only commands still work =="
 expect_ok "profiles"                      profiles

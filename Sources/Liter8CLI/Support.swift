@@ -52,6 +52,7 @@ let resolverGroups: [String: [String: String]] = [
         "ppl-allow-invalid": KernelPPLAllowInvalidResolver.name,
         "vm-fault-cs-bypass": KernelVMFaultCSBypassResolver.name,
         "vm-map-protect": KernelVMMapProtectResolver.name,
+        "task-access": KernelTaskAccessResolver.name,
         "valeria": KernelValeriaResolver.name,
         "exception-port": KernelExceptionPortResolver.name,
         "boot": KernelBootResolver.name,
@@ -252,6 +253,9 @@ func resolveRecords(
     case KernelVMMapProtectResolver.name:
         try options.requireNoTuning(resolver: name)
         return try KernelVMMapProtectResolver().resolve(in: image)
+    case KernelTaskAccessResolver.name:
+        try options.requireNoTuning(resolver: name)
+        return try KernelTaskAccessResolver().resolve(in: image)
     case KernelValeriaResolver.name:
         try options.requireNoTuning(resolver: name)
         return try KernelValeriaResolver().resolve(in: image)

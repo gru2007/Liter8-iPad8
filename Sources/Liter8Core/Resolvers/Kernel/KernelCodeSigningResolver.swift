@@ -20,8 +20,8 @@ import Foundation
 ///
 /// These are deliberately NOT part of `boot-public`. They weaken code signing
 /// for every process, so they live in the separate `boot-jit` plan, which `fw
-/// get-boot` always builds. On a kernel profile without the opt-in it is
-/// identical to `boot-public`.
+/// get-boot` builds unless `--no-tweaks` is given. On a kernel profile without
+/// the opt-in these add nothing to it.
 public enum KernelCodeSigningResolver {
     /// Opt-in variant key a kernel profile sets to request these patches.
     static let variantKey = "kernel-codesign-invalid"
@@ -50,6 +50,8 @@ public enum KernelOptInResolvers {
         case KernelPPLAllowInvalidResolver.name, KernelVMFaultCSBypassResolver.name,
              KernelVMMapProtectResolver.name:
             return KernelCodeSigningResolver.variantKey
+        case KernelTaskAccessResolver.name:
+            return KernelTaskAccessResolver.variantKey
         default:
             return nil
         }
@@ -59,8 +61,14 @@ public enum KernelOptInResolvers {
     /// profile without the opt-in skips it: on an unregistered kernel the
     /// standalone resolver is still probed, because whether it matches a new
     /// build is the porting evidence `survey` exists to collect.
+    ///
+    /// A family the detected profile explicitly omits (`omittedResolvers`) is
+    /// reported the same way: the composite plans leave it out by a reviewed
+    /// decision, so its standalone "no candidate" is not a porting failure.
     public static func isUnused(resolver name: String, by profile: KernelResolverProfile?) -> Bool {
-        guard let profile, let key = optInKey(forResolver: name) else { return false }
+        guard let profile else { return false }
+        if profile.omittedResolvers.contains(name) { return true }
+        guard let key = optInKey(forResolver: name) else { return false }
         return profile.variants(for: key) == nil
     }
 }

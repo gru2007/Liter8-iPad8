@@ -44,6 +44,12 @@ PRs welcome on any of these, especially SEP. The Pro and Pro Max are open too, i
 | iOS 27.2 beta 3 | `24B5099f` | run       | -            | -            |
 | iOS 27.2 beta 4 | `24B5110a` | run       | -            | -            |
 
+| Firmware      | Build   | iPad 8 Wi-Fi (`j171aap`) |
+| ------------- | ------- | ------------------------ |
+| iPadOS 26.7.1 | `23H30` | experimental             |
+
+The iPad 8 is an A12, not an A13. CFW restore and the SSH ramdisk work on one, and a normal boot was reported from the iPad 8 development branch; the merged build has not been booted yet. Every `fw` command needs `--experimental` for it. See [the iPad 8 guide (RU)](docs/IPAD8_GUIDE_RU.md) and [the port notes](docs/runs/IPAD8_J171AAP_23H30.md).
+
 "Run" means i did an erase restore, booted it normally, then rebooted and it came back up. "Experimental" means unverified. It resolves and you can use it with `--experimental`, but nobody has confirmed it on that phone. If you own one and are willing to try, share what happens and i'll change the tag.
 
 There's a catch with that table though. `fw restore-cfw` pulls a fresh APTicket from Apple while the restore is happening, so once Apple drops signing for a build you can't install it anymore. The row stays in the table because i did test it, but that doesn't mean you can still use it today. Check signing first.
@@ -155,7 +161,22 @@ Wait until you can SSH into the booted OS, then:
 
 The second `--check` is just so you can see it went through.
 
-### 8. Optional: debugger and TrollStore
+### 8. iPad 8 only: fixes, after every boot
+
+On iPad 8 (`iPad11,6` / `23H30`), each time the device has booted and the UI
+is up:
+
+```sh
+.build/release/liter8 fw tweaks --experimental --check
+.build/release/liter8 fw tweaks --experimental
+```
+
+This syncs and activates the iPad fixes in `device/tweaks.list`. It refuses
+any other device. See [device/README.md](device/README.md) and
+[docs/IPAD8_GUIDE_RU.md](docs/IPAD8_GUIDE_RU.md). On iPhone, tweak injection is
+covered by `fw finalize`; see [docs/USING_TWEAKS.md](docs/USING_TWEAKS.md).
+
+### 9. Optional: debugger and TrollStore
 
 Not part of the jailbreak. Skip it unless you want them. The device needs internet
 for this one, because apt resolves the dependencies on the phone.
@@ -223,6 +244,9 @@ It's all one Swift target. The folders are there so i can find things, nothing m
 - [iOS 27 `24A435` resolver and device evidence](docs/plans/IOS_27_24A435_RC_PATCHES.md)
 - [iPhone 11 beta 4 device run](docs/runs/IOS_27_BETA4_IPHONE11.md)
 - [iPhone 11 `24A446` pairing and watchdog research](docs/runs/IOS_27_24A446_PAIRING_AND_WATCHDOG.md)
+- [iPad 8 `23H30` port notes](docs/runs/IPAD8_J171AAP_23H30.md)
+- [iPad 8 tweaks, code signing, passcode and personas](docs/runs/IPAD8_TWEAKS_AND_CODESIGN.md)
+- [iPad 8: полная инструкция от IPSW до тестов (RU)](docs/runs/IPAD8_FULL_GUIDE_RU.md)
 - [Bootstrap and provisioning status](docs/design/BOOTSTRAP_JB_STATUS.md)
 - [Normal boot handoff](docs/design/NORMAL_BOOT_HANDOFF.md)
 - [Debugging platform daemons](docs/design/DEBUGGING_PLATFORM_DAEMONS.md)

@@ -195,6 +195,13 @@ public struct DeviceWorkflowProfile: Equatable, Sendable {
     /// Keeping this in the exact workflow profile prevents Python from
     /// silently applying an n104 workaround to every future device.
     public let bootPlan: DeviceBootPlan
+    /// Whether the board has a cellular modem. Provisioning's `cellular` step
+    /// (CommCenter's data-context patch and the libFDR calibration bypass) has
+    /// nothing to fix on a Wi-Fi-only board, and its CommCenter resolver was
+    /// written for the iOS 27 iPhone builds, so a profile that sets this false
+    /// leaves the step out and `verify` stops expecting it. Defaults to true,
+    /// which is every iPhone profile; j171aap is the one Wi-Fi-only board.
+    public var hasBaseband: Bool = true
 
     public func supports(_ identity: IPSWIdentity) -> Bool {
         guard identity.productVersion == productVersion,
@@ -492,6 +499,41 @@ public enum DeviceWorkflowRegistry {
                 normalIBSSAdditionalPlans: [],
                 restoreIBSSAdditionalPlans: []
             )
+        ),
+        // iPad 8 Wi-Fi, A12 / T8020, iPadOS 26.7.1. CFW restore and SSHRD
+        // work on hardware, and the operator reports a working normal boot
+        // from the iPad 8 development branch; the merged build has not been
+        // booted yet, so it stays experimental. No SPTM/TXM in this identity,
+        // and therefore no SPTM, PMP or WCH: those are the only passthrough
+        // images it may lack. Guards measured from the 23H30 System volume.
+        // The display workaround has no candidate on this iBSS and is not
+        // carried over. See docs/runs/IPAD8_J171AAP_23H30.md.
+        DeviceWorkflowProfile(
+            id: "ipad11,6-j171aap-23H30",
+            productVersion: "26.7.1",
+            build: "23H30",
+            productType: "iPad11,6",
+            deviceClass: "j171aap",
+            chipID: 0x8020,
+            boardID: 0x24,
+            extractedDirectoryName: "iPad11,6_26.7.1_23H30_Restore",
+            validationState: .experimental,
+            launchdSHA256: "1b37dae048542729a622a1a3f4b77ec8829d32e918f0d6a0c0c037f32d9e84b1",
+            launchdCacheSHA256: "af9183685525a0833fea7a16c7a81b3f85e14372ea33d49f3e1ec6ab1a90ca4f",
+            launchdCacheDaemonCount: 672,
+            setupControllerMethodCount: 58,
+            bootPlan: DeviceBootPlan(
+                normalIBSSAdditionalPlans: [],
+                restoreIBSSAdditionalPlans: [],
+                preservesIM4PCompression: true,
+                normalBootUsesStaticTrustCache: true,
+                optionalPassthroughFirmware: [
+                    "Ap,SecurePageTableMonitor", "PMP", "WCHFirmwareUpdater",
+                ]
+            ),
+            // iPad11,6 is the Wi-Fi model; the cellular j172aap has no
+            // workflow profile.
+            hasBaseband: false
         ),
     ]
 

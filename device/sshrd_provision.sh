@@ -36,6 +36,7 @@ usage() {
     echo "  userland patch and re-sign the SEP/activation daemons"
     echo "  pairing  install lockdownd, coreauthd companion guard and RemoteXPC repair"
     echo "  cellular unseal baseband calibration and stop CommCenter refusing a data context"
+    echo "           (only on a profile with a baseband; Wi-Fi-only boards such as j171aap skip it)"
     echo "  screentime make Setup's unavailable ScreenTime requests fail fast"
     echo "  injection install launchd hook plus icon grant, disabled for first boot"
     echo "  tweaks   install the tweak loader and the TweakInject payloads"
@@ -47,14 +48,17 @@ usage() {
     echo "  resolv   write /private/etc/resolv.conf so CLI DNS works"
     echo "  apps     copy the 50 removable system apps into /Applications"
     echo "  verify   check the end state"
+    echo "opt-in, never part of the default run:"
+    echo "  fixes    install the iPad 8 tweaks.list set into /var/jb (payload/fixes; see tweaks.list)"
     exit 0
 }
 
 CHECK_ONLY=0
+DEFAULT_RUN=0
 case "${1:-}" in
     --list|-h|--help) usage ;;
     --check) CHECK_ONLY=1; WANT="mounts verify" ;;
-    "") WANT="$STEPS" ;;
+    "") WANT="$STEPS"; DEFAULT_RUN=1 ;;
     *) WANT="mounts $* verify" ;;
 esac
 
@@ -103,6 +107,27 @@ say()  { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 ok()   { printf '    [+] %s\n' "$1"; }
 skip() { printf '    [=] %s\n' "$1"; }
 die()  { printf '    [!] %s\n' "$1"; exit 1; }
+
+# Whether this board has a modem, from the exact firmware profile
+# (DeviceWorkflowProfile.hasBaseband). The cellular step fixes CommCenter's
+# baseband calibration and data context. A Wi-Fi-only board (j171aap) has
+# neither to fix, and the CommCenter resolver was written for the iOS 27
+# iPhone builds, so there the step is left out of the default run, refused
+# when named, and not expected by verify.
+HAS_BASEBAND=${LITER8_HAS_BASEBAND:?Liter8 did not provide the reviewed baseband policy}
+case "$HAS_BASEBAND" in
+    0|1) ;;
+    *) die "LITER8_HAS_BASEBAND must be 0 or 1, not $HAS_BASEBAND" ;;
+esac
+if [ "$HAS_BASEBAND" = 0 ] && wants cellular; then
+    [ "$DEFAULT_RUN" = 1 ] \
+        || die "this firmware profile has no baseband; the cellular step does not apply"
+    no_cellular=
+    for step in $WANT; do
+        [ "$step" = cellular ] || no_cellular="$no_cellular $step"
+    done
+    WANT=${no_cellular# }
+fi
 
 # SSHRD's old Dropbear occasionally rejects a valid password when the workflow
 # opens several connections back-to-back. Buffer each attempt independently so
@@ -1273,6 +1298,59 @@ mv -f /mnt2/jb/usr/bin/ddiwatch.usbl8r-new /mnt2/jb/usr/bin/ddiwatch
     ok "uicache (iOS 27 containerized registration)"
 fi
 
+# ------------------------------------------------------------------- fixes
+# The iPad 8 fixes list (tweaks.list): its ElleKit tweaks and filters
+# (Facebook's exception-port guard, icons, Files, VPN, iCleaner), the helpers
+# the per-boot activation runs, the diagnostics and the default switches.
+# Opt-in: measured on iPad11,6 / 23H30 only, and l8excport and l8icons carry no
+# device guard, so it is never part of the default run. `liter8 fw tweaks`
+# installs the same set over SSH after a normal boot; this step is for doing it
+# from SSHRD instead. They stay inert until ElleKit is loaded and lhookctl
+# enables injection.
+tweak_device_path() {
+    printf '/mnt2/jb/%s' "${1#/var/jb/}"
+}
+
+if wants fixes && [ "$CHECK_ONLY" = 0 ]; then
+    say "iPad 8 fixes (tweaks.list)"
+    T_DIR=payload/fixes
+    [ -s "$T_DIR/MANIFEST" ] && [ -f "$T_DIR/MARKERS" ] \
+        || die "missing $T_DIR/MANIFEST; run ./fetch_payloads.sh fixes"
+    mkdir -p payload/.work/fixes
+
+    # Check every staged file against the manifest before any device write.
+    T_DIRS=""
+    while read -r t_sha t_mode t_path t_staged <&3; do
+        [ -f "$T_DIR/$t_staged" ] || die "$T_DIR/$t_staged is missing"
+        [ "$(shasum -a 256 "$T_DIR/$t_staged" | awk '{print $1}')" = "$t_sha" ] \
+            || die "$T_DIR/$t_staged does not match its manifest hash"
+        T_DIRS="$T_DIRS '$(dirname "$(tweak_device_path "$t_path")")'"
+    done 3< "$T_DIR/MANIFEST"
+    must_dev "mkdir -p $T_DIRS && echo DONE_OK" "could not create the tweak directories"
+
+    # Same-directory staging, then one rename per file, then a hash readback.
+    while read -r t_sha t_mode t_path t_staged <&3; do
+        t_dev=$(tweak_device_path "$t_path")
+        put "$T_DIR/$t_staged" "$t_dev.liter8-new"
+        must_dev "
+chmod $t_mode '$t_dev.liter8-new'
+mv -f '$t_dev.liter8-new' '$t_dev'
+echo DONE_OK
+" "could not activate $t_path"
+        sh_dev "/bin/cat '$t_dev'" > payload/.work/fixes/readback \
+            || die "could not read back $t_path"
+        [ "$(shasum -a 256 payload/.work/fixes/readback | awk '{print $1}')" = "$t_sha" ] \
+            || die "$t_path readback hash mismatch"
+        ok "$t_path"
+    done 3< "$T_DIR/MANIFEST"
+
+    # No switches from SSHRD. Two of them arm l8localauth and l8persona, which
+    # the general tweaks step and verify require to be dormant until the
+    # device has booted, so `liter8 fw tweaks` creates the default switches on
+    # its first activation instead.
+    skip "switches are created by the first \`liter8 fw tweaks\` after boot"
+fi
+
 # ----------------------------------------------------------------- bundles
 # Sileo comes from payload/, built by fetch_payloads.sh from the upstream
 # release. It used to be scraped off the device (installed via dpkg, then pulled
@@ -1632,8 +1710,12 @@ verify_userland_patch ctkd \
     /mnt1/System/Library/Frameworks/CryptoTokenKit.framework/ctkd
 verify_userland_patch lockdownd /mnt1/usr/libexec/lockdownd
 verify_userland_patch remotepairingdeviced /mnt1/usr/libexec/remotepairingdeviced
-verify_userland_patch CommCenter \
-    /mnt1/System/Library/Frameworks/CoreTelephony.framework/Support/CommCenter
+if [ "$HAS_BASEBAND" = 1 ]; then
+    verify_userland_patch CommCenter \
+        /mnt1/System/Library/Frameworks/CoreTelephony.framework/Support/CommCenter
+else
+    note "CommCenter patch" "not used: this board has no baseband"
+fi
 
 if [ -f payload/l8pair.dylib ]; then
     pairing_want=$(shasum -a 256 payload/l8pair.dylib | awk '{print $1}')
@@ -1680,7 +1762,9 @@ else
     coreauth_library_state=MISSING
 fi
 note "l8coreauth dylib" "$coreauth_library_state"
-if [ -f payload/l8fdr.dylib ]; then
+if [ "$HAS_BASEBAND" = 0 ]; then
+    fdr_library_state="not used: this board has no baseband"
+elif [ -f payload/l8fdr.dylib ]; then
     fdr_want=$(shasum -a 256 payload/l8fdr.dylib | awk '{print $1}')
     sh_dev '/bin/cat /mnt1/usr/lib/l8fdr.dylib' \
         > payload/.work/verify.l8fdr 2>/dev/null || true
@@ -1697,7 +1781,9 @@ fi
 note "l8fdr dylib" "$fdr_library_state"
 # Reported separately from the dylib: with the dylib present and the marker gone the
 # bypass is deliberately inert, which is a recovery state rather than a broken one.
-note "FDR sik bypass marker" "$(required_marker /mnt1/usr/lib/.liter8-fdr-sik-bypass)"
+if [ "$HAS_BASEBAND" = 1 ]; then
+    note "FDR sik bypass marker" "$(required_marker /mnt1/usr/lib/.liter8-fdr-sik-bypass)"
+fi
 note "pairing fallback marker" "$(required_marker /mnt2/root/Library/Lockdown/.liter8-pairing-fallback)"
 note "RemoteXPC fallback marker" "$(required_marker /mnt1/usr/lib/.liter8-remotepairing-fallback)"
 note "pairing fallback key" "$(sh_dev '[ -s /mnt2/root/Library/Lockdown/liter8_pairing_key.der ] && echo generated || echo pending' | tr -d '\r')"
@@ -1756,6 +1842,31 @@ fi
 note "l8boot System" "$l8boot_state"
 note "sbextissue System"  "$(sh_dev '[ -x /mnt1/usr/local/bin/sbextissue ] && echo present || echo ABSENT' | tr -d '\r')"
 note "pfruntimeprobe"     "$(sh_dev '[ -x /mnt2/jb/usr/bin/pfruntimeprobe ] && echo present || echo ABSENT' | tr -d '\r')"
+
+# Reported only where the iPad 8 fixes set was built: it is opt-in, so its
+# absence on any other device is the expected state, not a finding.
+if [ -s payload/fixes/MANIFEST ]; then
+    tweaks_total=0
+    tweaks_bad=""
+    mkdir -p payload/.work/fixes
+    while read -r t_sha t_mode t_path t_staged <&3; do
+        tweaks_total=$((tweaks_total + 1))
+        sh_dev "/bin/cat '$(tweak_device_path "$t_path")'" \
+            > payload/.work/fixes/verify 2>/dev/null || true
+        if [ ! -s payload/.work/fixes/verify ] || \
+           [ "$(shasum -a 256 payload/.work/fixes/verify | awk '{print $1}')" != "$t_sha" ]; then
+            tweaks_bad="$tweaks_bad ${t_path##*/}"
+        fi
+    done 3< payload/fixes/MANIFEST
+    if [ -z "$tweaks_bad" ]; then
+        note "tweaks.list payload" "$tweaks_total files OK"
+    else
+        note "tweaks.list payload" "MISMATCH$tweaks_bad"
+    fi
+    while read -r m_name m_path m_default <&3; do
+        note "switch $m_name" "$(sh_dev "[ -f '$(tweak_device_path "$m_path")' ] && echo on || echo off" | tr -d '\r')"
+    done 3< payload/fixes/MARKERS
+fi
 
 if [ -f payload/uicache ]; then
     expected_uicache=$(shasum -a 256 payload/uicache | awk '{print $1}')

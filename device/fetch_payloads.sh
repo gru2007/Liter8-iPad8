@@ -15,6 +15,7 @@
 #   ./fetch_payloads.sh                # the default set
 #   ./fetch_payloads.sh sileo          # just one
 #   ./fetch_payloads.sh debugserver    # optional, not in the default set
+#   ./fetch_payloads.sh fixes          # iPad 8 tweaks.list set, not default
 #
 # Why every binary is re-signed ad-hoc:
 #   Sileo ships flags=0x0 "no signature" with ZERO entitlements, because a real
@@ -162,6 +163,25 @@ mkdir -p "$OUT" "$WORK"
 
 WANT="${*:-sileo helpers cache injection tweaks pairing cellular}"
 wants() { case " $WANT " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+# A board without a modem has nothing for the cellular payload to fix; see
+# LITER8_HAS_BASEBAND in sshrd_provision.sh. Required only when cellular is
+# wanted, like the profile values below.
+if wants cellular; then
+    case "${LITER8_HAS_BASEBAND:-}" in
+        1) ;;
+        0)
+            [ $# -eq 0 ] \
+                || die "this firmware profile has no baseband; the cellular payload does not apply"
+            no_cellular=
+            for item in $WANT; do
+                [ "$item" = cellular ] || no_cellular="$no_cellular $item"
+            done
+            WANT=${no_cellular# }
+            ;;
+        *) die "Liter8 did not provide the reviewed baseband policy" ;;
+    esac
+fi
 
 # Assert the boot-critical profile values only for the components that use them.
 if wants injection; then
@@ -560,6 +580,17 @@ if wants cellular; then
     ok "CommCenter-only l8fdr.dylib ready"
 fi
 
+# ------------------------------------------------------------------- fixes
+# The iPad 8 fixes list (tweaks.list): the ElleKit tweaks with their filters
+# (the Facebook exception-port guard among them), their switches, and the
+# helpers `liter8 fw tweaks` runs after each boot. Measured on iPad11,6 / 23H30
+# only and some of them carry no device guard, so this is not a default step;
+# `liter8 fw tweaks` builds it on its own. See build_tweaks.sh.
+if wants fixes; then
+    say "iPad 8 fixes (tweaks.list)"
+    ./build_tweaks.sh || die "fixes payload build failed"
+fi
+
 # ------------------------------------------------------------------- cache
 # Build the launchd service cache from the IPSW, not from the device. It used
 # to be pulled off a live phone, which meant you needed an already-provisioned
@@ -772,5 +803,10 @@ for p in "$OUT/Sileo.app/Sileo" "$OUT/Sileo.app/giveMeRoot" \
         printf '    %-46s MISSING\n' "${p#"$BASE"/}"
     fi
 done
+if [ -f "$OUT/fixes/MANIFEST" ]; then
+    printf '    %-46s %8s files\n' "payload/fixes" "$(wc -l < "$OUT/fixes/MANIFEST" | tr -d ' ')"
+elif wants fixes; then
+    printf '    %-46s MISSING\n' "payload/fixes"
+fi
 echo
 echo "    next: boot the device into SSHRD, then ./sshrd_provision.sh"

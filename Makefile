@@ -53,6 +53,7 @@ integration: build
 	# The per-boot helper: SSH PATH links in a world-writable /tmp and the
 	# lhook auto-enable opt-in, compiled for the host with redirected paths.
 	python3 Tests/l8boot-tests.py
+	python3 Tests/tweaks-tests.py
 	# Scoped help and per-action option isolation. Needs no firmware: the checks
 	# that want one skip unless MACHO, KERNEL and IM4P are exported.
 	zsh Tests/cli_assert.sh .build/debug/liter8

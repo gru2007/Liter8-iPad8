@@ -1,8 +1,8 @@
 # launchctl compatible with iOS 26 and later
 
 `launchctl`
-SHA-256 `c46e143151f4d56fd9e3c088d74e231f4b6f4ff7477aad080359454821ec0125`,
-116560 bytes, arm64, adhoc signed as `com.apple.xpc.launchctl`.
+SHA-256 `9d0f0180b42dec8cd112b11cc08ca41d9111616dbb5499e5e515d611d5e5e78b`,
+116464 bytes, arm64, adhoc signed as `com.apple.xpc.launchctl`.
 
 ## Why the bootstrap copy cannot be used
 
@@ -64,3 +64,14 @@ iPhone 11 / n104ap on `24A435`, launchd healthy as PID 1:
     launchctl print system/com.apple.mobilegestalt.xpc
 
 returns launchd state with rc 0. Not yet re-verified after a reboot.
+
+## iPad 8 / 23H30 launch repair (2026-10-08)
+
+The packaged compatible binary was killed before main on this boot when
+carrying `task_for_pid-allow`. Removing only that entitlement and re-signing
+restored `version`, `print`, `kickstart`, and `bootout`. Other entitlements
+remain unchanged. The binary SHA-256 is now
+`9d0f0180b42dec8cd112b11cc08ca41d9111616dbb5499e5e515d611d5e5e78b`.
+This is a launch fix, not evidence that task-port access works. The durable
+copy lives at `/var/jb/usr/bin/launchctl`; Files no longer relies on a helper
+in `/var/tmp`, which cleaning or reboot can remove.

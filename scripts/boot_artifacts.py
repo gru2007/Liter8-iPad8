@@ -32,6 +32,30 @@ PASSTHROUGH_IMG4 = [
 
 TRUST_CACHES = {"StaticTrustCache", "RestoreTrustCache"}
 
+
+def verify_task_access_records(context: Context, kernel_plan: str) -> None:
+    """Reject an old CLI preparing this diagnostic iPad plan without its patches."""
+    if context.profile_id != "ipad11,6-j171aap-23H30" or kernel_plan != "boot-jit":
+        return
+    path = context.state / "patch-records" / "boot-kernel.json"
+    try:
+        records = json.loads(path.read_text())
+        by_id = {record["id"]: record for record in records}
+        expected = {f"kernel.task-access.{callback}.{word}"
+                    for callback in ("amfi-get-task", "sandbox-expose-task", "sandbox-get-task", "sandbox-debug")
+                    for word in range(3)}
+        expected.update(f"kernel.task-access.conversion.{n}" for n in range(2))
+        expected.add("kernel.task-access.control-out-trans")
+        marker = b"/TASKAC2_ARM64_T8020".hex()
+        valid = expected.issubset(by_id) and all(
+            by_id[f"kernel.identity.{n}"]["replacementBytes"] == marker for n in range(2))
+    except (OSError, ValueError, TypeError, KeyError):
+        valid = False
+    if not valid:
+        raise WorkflowError("iPad boot-jit is missing task-access records or its version marker; "
+                            "rebuild the selected Liter8 CLI before preparing this boot set")
+
+
 def selected_passthrough(
     components: dict[str, str], mode: str, *, static_trust_cache: bool = False,
     optional_firmware: frozenset[str] = frozenset()
@@ -49,10 +73,9 @@ def selected_passthrough(
     validate_boot_set derives its required filenames from this same result, so
     nothing downstream would notice before the chain reached the device.
 
-    The empty default is the conservative one and the state of every profile
-    registered today, which makes the whole set mandatory. j171aap is the known
-    exception, being A12/PPL with no SPTM and therefore none of SPTM, PMP or
-    WCH, and it will say so in its own profile.
+    The empty default is the conservative one, which makes the whole set
+    mandatory. j171aap is the one exception, being A12/PPL with no SPTM and
+    therefore none of SPTM, PMP or WCH, and it says so in its own profile.
     """
     trust_cache = (
         "StaticTrustCache" if mode == "normal" and static_trust_cache
@@ -93,14 +116,25 @@ def normal_boot_plans(*, patch_txm: bool) -> tuple[str, str | None]:
     """Kernel and TXM plans for a normal boot, as (kernel_plan, txm_plan).
 
     Every normal boot is built for runtime function hooks with TXM's policy
-    flags on, by operator decision; there is no switch. Both plans weaken code
-    signing for every process, and each covers one code-signing monitor and is
-    inert where that monitor is absent: kernel boot-jit carries the PPL patches
-    (only a kernel profile that opts in gets any) and clears the exception-port
-    behavior enforcement byte, and txm boot-permissive turns on the policy flags
-    and lets TXM approve the debug mapping a modified code page needs before it
+    flags on, by operator decision. Both plans weaken code signing for every
+    process, and each covers one code-signing monitor and is inert where that
+    monitor is absent: kernel boot-jit carries the PPL patches (only a kernel
+    profile that opts in gets any) and clears the exception-port behavior
+    enforcement byte, and txm boot-permissive turns on the policy flags and
+    lets TXM approve the debug mapping a modified code page needs before it
     can execute again. No TXM in the identity means no TXM plan.
+
+    `fw get-boot --no-tweaks` is the one way back, for when a code-signing
+    patch is wrong on a new build: kernel boot-public and TXM boot. The CLI
+    always writes LITER8_DISABLE_TWEAK_HOOKS as "0" or "1"; unset (a direct
+    script run) keeps the default, and any other value is refused rather than
+    guessed.
     """
+    switch = os.environ.get("LITER8_DISABLE_TWEAK_HOOKS", "0")
+    if switch not in {"0", "1"}:
+        raise WorkflowError(f"LITER8_DISABLE_TWEAK_HOOKS must be 0 or 1, not {switch!r}")
+    if switch == "1":
+        return "boot-public", "boot" if patch_txm else None
     return "boot-jit", "boot-permissive" if patch_txm else None
 
 
@@ -257,7 +291,9 @@ def build_normal_boot() -> None:
         print("[*] normal boot: patching kernelcache", flush=True)
         kernel = staging / ".Kernelcache.im4p"
         shutil.copy2(context.component("KernelCache"), kernel)
+        print(f"[*] normal boot: kernel plan {kernel_plan}", flush=True)
         context.apply("kernel", kernel_plan, kernel, record_name="boot-kernel")
+        verify_task_access_records(context, kernel_plan)
         create_img4(
             context, kernel, ticket, staging / "Kernelcache.img4", fourcc="rkrn"
         )

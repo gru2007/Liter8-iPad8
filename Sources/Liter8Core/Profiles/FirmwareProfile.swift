@@ -228,6 +228,53 @@ public enum KernelResolverProfileRegistry {
                 ),
             ]
         ),
+        KernelResolverProfile(
+            // iPad 8, A12 / T8020, iPadOS 26.7.1. A different SoC and XNU
+            // major from every other profile here. The Wi-Fi and Cellular
+            // boards share this kernelcache.
+            id: "ios26-23H30-j171aap",
+            productVersion: "26.7.1",
+            builds: ["23H30"],
+            boards: ["j171aap", "j172aap"],
+            component: "kernelcache.release.ipad11b",
+            embeddedFingerprint: "xnu-12377.162.13.700.38~2/RELEASE_ARM64_T8020",
+            resolverVariants: [
+                // T8020 PPL makes its own trust decision; see
+                // KernelPPLTrustCacheResolver.
+                "kernel-ppl-trust-cache": ResolverVariantProfile(
+                    signature: "t8020-loaded-trust-cache-v1",
+                    payload: "loaded-trust-cache-true-v1"
+                ),
+                // 25 entries, not 26. See
+                // KernelCredentialManagerSignatures.release23H30V1.
+                "kernel-credential-manager": ResolverVariantProfile(
+                    signature: "ios26-23H30-acm-v1",
+                    payload: "acm-return-success-v1"
+                ),
+                // Opt-in: include the code-signing-invalid patches in the
+                // kernel-boot-jit plan so runtime tweak hooks are not killed.
+                // Each resolves to one site on the 23H30 kernelcache. See
+                // KernelCodeSigningResolver.
+                "kernel-codesign-invalid": ResolverVariantProfile(
+                    signature: "t8020-codesign-invalid-v1",
+                    payload: "codesign-invalid-allow-v1"
+                ),
+                "kernel-task-access": ResolverVariantProfile(
+                    signature: "t8020-task-access-v1",
+                    payload: "macf-task-and-conversion-allow-v1"
+                ),
+            ],
+            // No scoped Sandbox predecessor, so no Valeria cave. Not ported.
+            //
+            // The exception-port enforcement byte is not ported either. Its
+            // resolver was written for 27.x kernels, where the byte is a
+            // __DATA_CONST constant; in xnu-12377 it was a boot-arg tunable,
+            // and the resolver has not been run against this kernel. This
+            // device handles EXC_GUARD SET_EXCEPTION_BEHAVIOR in userland
+            // instead (the excportfix ElleKit tweak), and its exact boot-jit
+            // fixture was measured without the kernel record.
+            omittedResolvers: [KernelValeriaResolver.name, KernelExceptionPortResolver.name]
+        ),
     ]
 
     /// Detect a profile using evidence embedded in the artifact itself.
