@@ -1,0 +1,20 @@
+{
+  "expectedOutputSHA256" : "b17efcd04c02100d700421fc7e2733732e0154b5cd29769a12bb803a796d3e97",
+  "expectedPatches" : [
+    {
+      "id" : "kernel.codesign.ppl-debug-entitlements",
+      "offset" : 52748540,
+      "originalBytes" : "e80a0037",
+      "replacementBytes" : "57000014"
+    }
+  ],
+  "expectedSize" : 59031552,
+  "resolver" : "kernel-ppl-debug-entitlements",
+  "sha256" : "eee662eba10dc9302a8999677361adf12ce86a61078ed387181ab9a183c334be",
+  "target" : {
+    "board" : "j171aap",
+    "build" : "23H30",
+    "component" : "kernelcache",
+    "device" : "iPad11,6"
+  }
+}

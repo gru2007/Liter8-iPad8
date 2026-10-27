@@ -1843,15 +1843,20 @@ note "l8boot System" "$l8boot_state"
 note "sbextissue System"  "$(sh_dev '[ -x /mnt1/usr/local/bin/sbextissue ] && echo present || echo ABSENT' | tr -d '\r')"
 note "pfruntimeprobe"     "$(sh_dev '[ -x /mnt2/jb/usr/bin/pfruntimeprobe ] && echo present || echo ABSENT' | tr -d '\r')"
 
-# Reported only where the iPad 8 fixes set was built: it is opt-in, so its
-# absence on any other device is the expected state, not a finding.
-if [ -s payload/fixes/MANIFEST ]; then
+# Reported only when this run installs the opt-in iPad 8 fixes set. A built
+# payload/fixes alone is not enough: `liter8 fw tweaks` and build_tweaks.sh
+# build it too, and a default run never installs it, so checking it there made
+# every default provision fail on files it was never meant to write. `fw tweaks
+# --check` verifies the set on a booted device.
+if wants fixes && [ -s payload/fixes/MANIFEST ]; then
     tweaks_total=0
     tweaks_bad=""
     mkdir -p payload/.work/fixes
     while read -r t_sha t_mode t_path t_staged <&3; do
         tweaks_total=$((tweaks_total + 1))
-        sh_dev "/bin/cat '$(tweak_device_path "$t_path")'" \
+        # An absent file exits 0 with no output, so sh_dev does not spend five
+        # SSH retries on it; the empty readback still reports MISMATCH below.
+        sh_dev "[ ! -e '$(tweak_device_path "$t_path")' ] || /bin/cat '$(tweak_device_path "$t_path")'" \
             > payload/.work/fixes/verify 2>/dev/null || true
         if [ ! -s payload/.work/fixes/verify ] || \
            [ "$(shasum -a 256 payload/.work/fixes/verify | awk '{print $1}')" != "$t_sha" ]; then

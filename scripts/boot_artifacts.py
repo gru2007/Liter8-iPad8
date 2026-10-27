@@ -254,6 +254,8 @@ def build_normal_boot() -> None:
         ibec_source = context.component("iBEC")
         context.extract_im4p(ibec_source, ibec_raw)
         context.apply("iboot", "ibss-normal", ibec_raw, record_name="boot-ibec")
+        for plan in context.normal_ibec_additional_plans:
+            context.apply("iboot", plan, ibec_raw, record_name=f"boot-ibec-{plan}")
         context.repack_im4p(ibec_source, ibec_raw, ibec_im4p)
         create_img4(context, ibec_im4p, ticket, staging / "iBEC.img4")
 

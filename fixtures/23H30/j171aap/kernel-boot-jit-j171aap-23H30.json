@@ -1,5 +1,5 @@
 {
-  "expectedOutputSHA256" : "795e96f68601425828d4d1f9905bf8d20a2c4d832fb885e5bc38bda64abf30c9",
+  "expectedOutputSHA256" : "56463556673c5a3d1def9ee5aecbac1db4c8336b2b5e3ebc3a6515a2010d8ac5",
   "expectedPatches" : [
     {
       "id" : "kernel.identity.0",
@@ -738,6 +738,24 @@
       "offset" : 45206888,
       "originalBytes" : "68003837",
       "replacementBytes" : "1f2003d5"
+    },
+    {
+      "id" : "kernel.codesign.ppl-debug-entitlements",
+      "offset" : 52748540,
+      "originalBytes" : "e80a0037",
+      "replacementBytes" : "57000014"
+    },
+    {
+      "id" : "kernel.amfi.developer-mode.decision.direct",
+      "offset" : 27033480,
+      "originalBytes" : "db165694",
+      "replacementBytes" : "d9165694"
+    },
+    {
+      "id" : "kernel.amfi.developer-mode.decision.acm",
+      "offset" : 27033764,
+      "originalBytes" : "99010094",
+      "replacementBytes" : "7c010094"
     },
     {
       "id" : "kernel.task-access.amfi-get-task.0",

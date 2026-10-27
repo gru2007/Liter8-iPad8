@@ -1,7 +1,11 @@
 import Foundation
 
 /// Static kernel patches that let an already-running process modify its own
-/// executable pages without being killed for a code-signing violation. This is
+/// executable pages without being killed for a code-signing violation, plus
+/// PPL's debug-entitlement gate so binaries signed with `get-task-allow` or
+/// `task_for_pid-allow` launch at all (KernelPPLDebugEntitlementsResolver), and
+/// AMFI's boot-time Developer Mode decision so the PPL mode byte is really set
+/// on the SEP-less boot (KernelDeveloperModeResolver). This is
 /// what a runtime function hook (ElleKit's `MSHookFunction`) needs: the AMFI
 /// PPL trust-cache stub alone lets an ad-hoc binary *launch*, but the first
 /// time a tweak rewrites an instruction in a signed page the process dies with
@@ -36,6 +40,8 @@ public enum KernelCodeSigningResolver {
         return try KernelPPLAllowInvalidResolver().resolve(in: image)
             + KernelVMFaultCSBypassResolver().resolve(in: image)
             + KernelVMMapProtectResolver().resolve(in: image)
+            + KernelPPLDebugEntitlementsResolver().resolve(in: image)
+            + KernelDeveloperModeResolver().resolve(in: image)
     }
 }
 
@@ -48,7 +54,8 @@ public enum KernelOptInResolvers {
         case KernelPPLTrustCacheResolver.name:
             return KernelPPLTrustCacheResolver.name
         case KernelPPLAllowInvalidResolver.name, KernelVMFaultCSBypassResolver.name,
-             KernelVMMapProtectResolver.name:
+             KernelVMMapProtectResolver.name, KernelPPLDebugEntitlementsResolver.name,
+             KernelDeveloperModeResolver.name:
             return KernelCodeSigningResolver.variantKey
         case KernelTaskAccessResolver.name:
             return KernelTaskAccessResolver.variantKey

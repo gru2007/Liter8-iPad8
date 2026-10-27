@@ -21,9 +21,11 @@ private let componentDiscussion = """
 COMPONENTS AND PLANS:
   iboot       ibss-validate, ibss-bootargs, ibss-normal, ibss-restore,
               ibec-restore, ibss-ramdisk, ibss-skip-display-init,
-              ibec-ignore-pinot-failure, ibec-force-pinot-id
+              ibec-ignore-pinot-failure, ibec-force-pinot-id,
+              ibec-allow-duplicate-trust-cache
   kernel      restore, ppl-trust-cache, boot-policy, aks, sep-silence, sep,
               credential-manager, sandbox, sandbox-public, ppl-allow-invalid,
+              ppl-debug-entitlements, amfi-developer-mode,
               vm-fault-cs-bypass, vm-map-protect, task-access, valeria,
               exception-port, boot, boot-public, boot-jit, diagnostic
   txm         restore, boot, debug-mapping, boot-debug, permissive-flags,

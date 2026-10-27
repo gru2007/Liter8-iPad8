@@ -157,10 +157,10 @@ class Device:
 
     def __init__(self, host: str, port: int):
         self.host, self.port = host, port
-        sshpass = shutil.which("sshpass")
-        if not sshpass or subprocess.run([sshpass, "-V"], capture_output=True).returncode:
-            sshpass = str(TOOLS / "sshpass")
-        self.ssh = [sshpass, "-p", "alpine", "ssh",
+        # ssh's own askpass hook, as sshrd_provision.sh uses: sshpass races
+        # dropbear's password prompt and intermittently sends the wrong secret,
+        # which made a correct write look like a failed readback.
+        self.ssh = [str(BASE / "askpass-sshpass"), "-p", "alpine", "ssh",
                     "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
                     "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=25",
                     "-o", "HostKeyAlgorithms=+ecdsa-sha2-nistp521", "-o", "Ciphers=+aes128-ctr",
@@ -203,13 +203,24 @@ class Device:
         code, data = self.run(f"cat {shlex.quote(path)}", check=False)
         return data if code == 0 else None
 
+    def read_back(self, path: str, attempts: int = 3) -> bytes:
+        """Read a file just written. Retry only a failed transport, never a mismatch."""
+        code = 0
+        for attempt in range(attempts):
+            code, data = self.run(f"cat {shlex.quote(path)}", check=False)
+            if code == 0:
+                return data
+            if attempt + 1 < attempts:
+                time.sleep(1)
+        raise TweakError(f"{path} could not be read back over SSH (exit {code})")
+
     def write(self, path: str, data: bytes, mode: str, owner: str = "0:0") -> None:
         """Same-directory staging, one rename, then a hash readback."""
         q, tmp = shlex.quote(path), shlex.quote(path + ".liter8-new")
         self.run(f"mkdir -p {shlex.quote(str(pathlib.PurePosixPath(path).parent))} && "
                  f"cat > {tmp} && chown {owner} {tmp} && chmod {mode} {tmp} && mv -f {tmp} {q}",
                  data=data)
-        if sha256(self.read(path) or b"") != sha256(data):
+        if sha256(self.read_back(path)) != sha256(data):
             raise TweakError(f"{path} readback hash mismatch")
 
     def touch_marker(self, path: str) -> None:

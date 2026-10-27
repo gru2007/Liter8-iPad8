@@ -1,0 +1,26 @@
+{
+  "expectedOutputSHA256" : "e691796f719787fc1a2b77c69c4f248d5ecac3b398bd33739f47d5507c2ef086",
+  "expectedPatches" : [
+    {
+      "id" : "kernel.amfi.developer-mode.decision.direct",
+      "offset" : 27033480,
+      "originalBytes" : "db165694",
+      "replacementBytes" : "d9165694"
+    },
+    {
+      "id" : "kernel.amfi.developer-mode.decision.acm",
+      "offset" : 27033764,
+      "originalBytes" : "99010094",
+      "replacementBytes" : "7c010094"
+    }
+  ],
+  "expectedSize" : 59031552,
+  "resolver" : "kernel-amfi-developer-mode",
+  "sha256" : "eee662eba10dc9302a8999677361adf12ce86a61078ed387181ab9a183c334be",
+  "target" : {
+    "board" : "j171aap",
+    "build" : "23H30",
+    "component" : "kernelcache",
+    "device" : "iPad11,6"
+  }
+}

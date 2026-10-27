@@ -138,6 +138,10 @@ class WiringTests(unittest.TestCase):
         self.assertEqual(liter8_tweaks.PAYLOAD, DEVICE / "payload/fixes")
         self.assertIn("readback hash mismatch", provision)
         self.assertIn('note "tweaks.list payload"', provision)
+        # verify checks the set only when this run installs it: a payload built
+        # by `fw tweaks` or build_tweaks.sh must not fail a default provision.
+        self.assertIn("if wants fixes && [ -s payload/fixes/MANIFEST ]; then", provision)
+        self.assertNotIn("\nif [ -s payload/fixes/MANIFEST ]; then", provision)
         # Switches come from `fw tweaks`, never from SSHRD: provisioning must
         # leave l8localauth and l8persona dormant for verify.
         self.assertNotIn("markers-initialized", provision)
@@ -355,6 +359,44 @@ class LogicTests(unittest.TestCase):
             Path(directory, "MANIFEST").write_text(f"{'0' * 64} 0755 /usr/lib/x root/x\n")
             with self.assertRaises(TweakError):
                 load_manifest(Path(directory))
+
+
+class DeviceTransportTests(unittest.TestCase):
+    """The SSH transport behind every fw tweaks write."""
+
+    def test_uses_the_askpass_shim_not_sshpass(self):
+        # sshpass races dropbear's password prompt; a lost race made a correct
+        # write report "readback hash mismatch" on 23H128.
+        device = liter8_tweaks.Device("localhost", 2222)
+        self.assertEqual(device.ssh[0], str(DEVICE / "askpass-sshpass"))
+        self.assertTrue((DEVICE / "askpass-sshpass").is_file())
+        self.assertNotIn("sshpass", Path(device.ssh[0]).name.replace("askpass-sshpass", ""))
+
+    def results(self, *codes_and_data):
+        return [subprocess.CompletedProcess([], code, data, b"") for code, data in codes_and_data]
+
+    def test_a_failed_readback_transport_is_retried(self):
+        device = liter8_tweaks.Device("localhost", 2222)
+        side = self.results((0, b""), (255, b""), (0, b"payload"))
+        with unittest.mock.patch.object(liter8_tweaks.subprocess, "run", side_effect=side), \
+                unittest.mock.patch.object(liter8_tweaks.time, "sleep"):
+            device.write("/var/jb/x", b"payload", "0644")
+
+    def test_a_persistently_unreadable_file_says_so(self):
+        device = liter8_tweaks.Device("localhost", 2222)
+        side = self.results((0, b""), (255, b""), (255, b""), (255, b""))
+        with unittest.mock.patch.object(liter8_tweaks.subprocess, "run", side_effect=side), \
+                unittest.mock.patch.object(liter8_tweaks.time, "sleep"):
+            with self.assertRaisesRegex(TweakError, "could not be read back over SSH"):
+                device.write("/var/jb/x", b"payload", "0644")
+
+    def test_a_real_mismatch_is_not_retried(self):
+        device = liter8_tweaks.Device("localhost", 2222)
+        side = self.results((0, b""), (0, b"different"))
+        with unittest.mock.patch.object(liter8_tweaks.subprocess, "run", side_effect=side) as run:
+            with self.assertRaisesRegex(TweakError, "readback hash mismatch"):
+                device.write("/var/jb/x", b"payload", "0644")
+        self.assertEqual(run.call_count, 2)
 
 
 if __name__ == "__main__":

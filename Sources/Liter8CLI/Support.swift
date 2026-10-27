@@ -36,6 +36,7 @@ let resolverGroups: [String: [String: String]] = [
         "ibec-restore": IBECRestoreResolver.name,
         "ibss-ramdisk": IBSSRamdiskResolver.name,
         "ibss-skip-display-init": IBSSSkipDisplayInitResolver.name,
+        "ibec-allow-duplicate-trust-cache": IBECAllowDuplicateTrustCacheResolver.name,
         "ibec-ignore-pinot-failure": IBECPinotIgnoreFailureResolver.name,
         "ibec-force-pinot-id": IBECPinotForceIDResolver.name,
     ],
@@ -50,6 +51,8 @@ let resolverGroups: [String: [String: String]] = [
         "sandbox": KernelSandboxResolver.name,
         "sandbox-public": KernelSandboxCompatibilityResolver.name,
         "ppl-allow-invalid": KernelPPLAllowInvalidResolver.name,
+        "ppl-debug-entitlements": KernelPPLDebugEntitlementsResolver.name,
+        "amfi-developer-mode": KernelDeveloperModeResolver.name,
         "vm-fault-cs-bypass": KernelVMFaultCSBypassResolver.name,
         "vm-map-protect": KernelVMMapProtectResolver.name,
         "task-access": KernelTaskAccessResolver.name,
@@ -209,6 +212,9 @@ func resolveRecords(
     case IBECPinotIgnoreFailureResolver.name:
         try options.requireNoTuning(resolver: name)
         return try IBECPinotIgnoreFailureResolver().resolve(in: image)
+    case IBECAllowDuplicateTrustCacheResolver.name:
+        try options.requireNoTuning(resolver: name)
+        return try IBECAllowDuplicateTrustCacheResolver().resolve(in: image)
     case IBECPinotForceIDResolver.name:
         guard options.bootArguments == nil else {
             throw ValidationError("\(name) does not accept --boot-args")
@@ -244,6 +250,12 @@ func resolveRecords(
     case KernelSandboxCompatibilityResolver.name:
         try options.requireNoTuning(resolver: name)
         return try KernelSandboxCompatibilityResolver().resolve(in: image)
+    case KernelDeveloperModeResolver.name:
+        try options.requireNoTuning(resolver: name)
+        return try KernelDeveloperModeResolver().resolve(in: image)
+    case KernelPPLDebugEntitlementsResolver.name:
+        try options.requireNoTuning(resolver: name)
+        return try KernelPPLDebugEntitlementsResolver().resolve(in: image)
     case KernelPPLAllowInvalidResolver.name:
         try options.requireNoTuning(resolver: name)
         return try KernelPPLAllowInvalidResolver().resolve(in: image)

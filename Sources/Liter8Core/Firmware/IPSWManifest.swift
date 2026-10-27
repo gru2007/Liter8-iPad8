@@ -117,6 +117,18 @@ public enum DeviceIBSSAdditionalPlan: String, Codable, Equatable, Sendable {
     case skipDisplayInitialization = "ibss-skip-display-init"
 }
 
+/// Extra iBEC operations for the normal boot, selected by the profile.
+///
+/// Same contract as `DeviceIBSSAdditionalPlan`: raw values are the CLI plan
+/// spellings, Swift writes them into the workflow context, Python applies
+/// them to the normal-boot iBEC only. SSHRD's iBEC never takes them.
+public enum DeviceIBECAdditionalPlan: String, Codable, Equatable, Sendable {
+    /// iBoot 26.7.2 rejects a second trust cache of a type it holds, and its
+    /// normal `bootx` loads the StaticTrustCache from storage after Liter8
+    /// has sent the same one. See IBECAllowDuplicateTrustCacheResolver.
+    case allowDuplicateTrustCache = "ibec-allow-duplicate-trust-cache"
+}
+
 /// Hardware-selected additions to the otherwise generic boot recipes.
 ///
 /// Normal boot and SSHRD are separate because a future board may need the
@@ -125,6 +137,9 @@ public enum DeviceIBSSAdditionalPlan: String, Codable, Equatable, Sendable {
 public struct DeviceBootPlan: Codable, Equatable, Sendable {
     public let normalIBSSAdditionalPlans: [DeviceIBSSAdditionalPlan]
     public let restoreIBSSAdditionalPlans: [DeviceIBSSAdditionalPlan]
+    /// Applied to the normal-boot iBEC after `ibss-normal`. Empty for every
+    /// profile whose iBEC boots as shipped.
+    public let normalIBECAdditionalPlans: [DeviceIBECAdditionalPlan]
     /// Re-encode patched IM4P payloads in their shipped compression instead
     /// of uncompressed. n104 boots uncompressed images; the j171aap iBoot
     /// rejects them and only accepts restricted LZFSE (see FirmwareArtifact).
@@ -147,12 +162,14 @@ public struct DeviceBootPlan: Codable, Equatable, Sendable {
     public init(
         normalIBSSAdditionalPlans: [DeviceIBSSAdditionalPlan],
         restoreIBSSAdditionalPlans: [DeviceIBSSAdditionalPlan],
+        normalIBECAdditionalPlans: [DeviceIBECAdditionalPlan] = [],
         preservesIM4PCompression: Bool = false,
         normalBootUsesStaticTrustCache: Bool = false,
         optionalPassthroughFirmware: [String] = []
     ) {
         self.normalIBSSAdditionalPlans = normalIBSSAdditionalPlans
         self.restoreIBSSAdditionalPlans = restoreIBSSAdditionalPlans
+        self.normalIBECAdditionalPlans = normalIBECAdditionalPlans
         self.preservesIM4PCompression = preservesIM4PCompression
         self.normalBootUsesStaticTrustCache = normalBootUsesStaticTrustCache
         self.optionalPassthroughFirmware = optionalPassthroughFirmware
@@ -541,8 +558,13 @@ public enum DeviceWorkflowRegistry {
         // page-offset fields, at offsets shifted by the new layout. Guards
         // measured from the 23H128 System volume with `survey --guards`:
         // launchd and its cache changed, the daemon and Setup method counts
-        // did not. Boot plan copied from 23H30 because iBSS/iBEC resolve at
-        // the same code offsets. Not run on hardware yet. See
+        // did not. iBSS/iBEC resolve at the same code offsets as 23H30, but
+        // the 23H128 iBEC rejects the duplicate StaticTrustCache a normal
+        // bootx ends up with, so its iBEC also takes the duplicate-trust-cache
+        // plan. Measured on iPad11,6: without it bootx stays in Recovery,
+        // even with an unpatched kernel; with the 23H30 iBoot, which allows
+        // the duplicate, the same 23H128 boot set boots. The patched 23H128
+        // iBEC itself has not been booted yet. See
         // docs/runs/IPAD8_J171AAP_23H128.md.
         DeviceWorkflowProfile(
             id: "ipad11,6-j171aap-23H128",
@@ -561,6 +583,7 @@ public enum DeviceWorkflowRegistry {
             bootPlan: DeviceBootPlan(
                 normalIBSSAdditionalPlans: [],
                 restoreIBSSAdditionalPlans: [],
+                normalIBECAdditionalPlans: [.allowDuplicateTrustCache],
                 preservesIM4PCompression: true,
                 normalBootUsesStaticTrustCache: true,
                 optionalPassthroughFirmware: [

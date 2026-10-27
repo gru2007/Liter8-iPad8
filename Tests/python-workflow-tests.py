@@ -25,6 +25,7 @@ sys.path.insert(0, str(SCRIPTS))
 import liter8_workflow  # noqa: E402
 from liter8_workflow import Context, WorkflowError, run, runnable_tool  # noqa: E402
 import measure_guards  # noqa: E402
+import boot_artifacts  # noqa: E402
 from boot_artifacts import (  # noqa: E402
     PASSTHROUGH_IMG4,
     has_txm,
@@ -301,6 +302,7 @@ class ContextTests(unittest.TestCase):
             "bootPlan": {
                 "normalIBSSAdditionalPlans": ["ibss-skip-display-init"],
                 "restoreIBSSAdditionalPlans": ["ibss-skip-display-init"],
+                "normalIBECAdditionalPlans": ["ibec-allow-duplicate-trust-cache"],
                 "preservesIM4PCompression": False,
                 "normalBootUsesStaticTrustCache": False,
                 "optionalPassthroughFirmware": [],
@@ -332,6 +334,10 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(
                 context.restore_ibss_additional_plans,
                 ("ibss-skip-display-init",),
+            )
+            self.assertEqual(
+                context.normal_ibec_additional_plans,
+                ("ibec-allow-duplicate-trust-cache",),
             )
         finally:
             os.chdir(previous)
@@ -391,6 +397,36 @@ class ContextTests(unittest.TestCase):
             self.assertEqual([command[-1] for command in commands],
                              ["--preserve-compression"] * 2)
         finally:
+            os.chdir(previous)
+
+    def test_rejects_a_missing_or_unknown_ibec_plan_list(self):
+        """The iBEC list is required context and fails closed like the iBSS one.
+
+        An iBSS plan named in the iBEC list is refused too: the two lists are
+        applied to different stages and must not be interchangeable.
+        """
+        cases = [
+            (None, "invalid normal iBEC plan list"),
+            ("ibec-allow-duplicate-trust-cache", "invalid normal iBEC plan list"),
+            (["ibss-skip-display-init"], "unsupported normal iBEC plans"),
+            (["ibec-allow-duplicate-trust-cache"] * 2, "repeats a normal iBEC plan"),
+        ]
+        original = self.context_file.read_text()
+        previous = Path.cwd()
+        try:
+            os.chdir(self.work)
+            for value, message in cases:
+                document = json.loads(original)
+                if value is None:
+                    del document["bootPlan"]["normalIBECAdditionalPlans"]
+                else:
+                    document["bootPlan"]["normalIBECAdditionalPlans"] = value
+                self.context_file.write_text(json.dumps(document))
+                with self.subTest(value=value), patch.dict(os.environ, self.environment, clear=True):
+                    with self.assertRaisesRegex(WorkflowError, message):
+                        Context.load()
+        finally:
+            self.context_file.write_text(original)
             os.chdir(previous)
 
     def test_rejects_unknown_hardware_boot_plan(self):
@@ -1712,6 +1748,80 @@ class TaskAccessBootRecordsTests(unittest.TestCase):
             context.profile_id = "iphone11-n104ap-24A435"
             path.write_text(json.dumps(damaged))
             verify_task_access_records(context, "boot-jit")
+
+
+class IBECAdditionalPlanTests(unittest.TestCase):
+    """The profile's iBEC plans reach the normal-boot iBEC and nothing else.
+
+    Mocked host side: this records which iBoot plans are applied to which
+    file, not whether the patched iBEC boots. The device result is recorded
+    in docs/runs/IPAD8_J171AAP_23H128.md.
+    """
+
+    class FakeContext:
+        def __init__(self, state, ibec_plans):
+            self.state = state
+            self.work = state
+            self.components = {
+                name: f"Firmware/{name}.im4p" for name in (
+                    "iBSS", "iBEC", "LLB", "iBoot", "DeviceTree", "KernelCache",
+                    "RestoreLogo", "ANE", "AOP", "AVE", "GFX", "ISP",
+                    "StaticTrustCache", "RestoreTrustCache", "SIO", "SEP",
+                    "RestoreRamDisk",
+                )
+            }
+            self.normal_boot_static_trust_cache = True
+            self.optional_passthrough_firmware = J171AAP_OPTIONAL
+            self.normal_ibss_additional_plans = ()
+            self.restore_ibss_additional_plans = ()
+            self.normal_ibec_additional_plans = ibec_plans
+            self.applied = []
+
+        def component(self, name, *, in_cfw=False):
+            return self.state / f"{name}.src"
+
+        def extract_im4p(self, source, output):
+            Path(output).write_bytes(b"raw")
+
+        def repack_im4p(self, source, raw, output):
+            Path(output).write_bytes(b"im4p")
+
+        def apply(self, component, plan, target, *, record_name, capture_records=True):
+            self.applied.append((component, plan, Path(target).name))
+
+    def build(self, mode, ibec_plans):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            context = self.FakeContext(state, ibec_plans)
+            with patch.object(boot_artifacts.Context, "load", return_value=context), \
+                    patch.object(boot_artifacts, "ticket_from_environment", return_value=state / "t"), \
+                    patch.object(boot_artifacts, "create_img4"), \
+                    patch.object(boot_artifacts, "publish_directory"), \
+                    patch.object(boot_artifacts, "write_boot_manifest"), \
+                    patch.object(boot_artifacts, "verify_task_access_records"), \
+                    patch("sshrd.build_sshrd"), \
+                    patch("shutil.copy2"), \
+                    redirect_stdout(io.StringIO()):
+                (boot_artifacts.build_normal_boot if mode == "normal"
+                 else boot_artifacts.build_restore_boot)()
+            return [entry for entry in context.applied if entry[0] == "iboot"]
+
+    def test_normal_boot_applies_the_ibec_plan_to_ibec_after_ibss_normal(self):
+        self.assertEqual(self.build("normal", ("ibec-allow-duplicate-trust-cache",)), [
+            ("iboot", "ibss-normal", "iBSS.raw"),
+            ("iboot", "ibss-normal", ".iBEC.raw"),
+            ("iboot", "ibec-allow-duplicate-trust-cache", ".iBEC.raw"),
+        ])
+
+    def test_without_the_plan_the_normal_boot_is_unchanged(self):
+        self.assertEqual(self.build("normal", ()), [
+            ("iboot", "ibss-normal", "iBSS.raw"),
+            ("iboot", "ibss-normal", ".iBEC.raw"),
+        ])
+
+    def test_sshrd_never_takes_the_ibec_plan(self):
+        applied = self.build("restore", ("ibec-allow-duplicate-trust-cache",))
+        self.assertNotIn("ibec-allow-duplicate-trust-cache", [plan for _, plan, _ in applied])
 
 
 if __name__ == "__main__":

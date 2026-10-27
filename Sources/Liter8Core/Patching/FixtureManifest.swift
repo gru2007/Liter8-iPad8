@@ -173,6 +173,8 @@ public struct FixtureManifest: Codable, Sendable {
             return try IBSSSkipDisplayInitResolver().resolve(in: image)
         case IBECPinotIgnoreFailureResolver.name:
             return try IBECPinotIgnoreFailureResolver().resolve(in: image)
+        case IBECAllowDuplicateTrustCacheResolver.name:
+            return try IBECAllowDuplicateTrustCacheResolver().resolve(in: image)
         case KernelRestoreResolver.name:
             return try KernelRestoreResolver().resolve(in: image)
         case KernelPPLTrustCacheResolver.name:
@@ -191,6 +193,10 @@ public struct FixtureManifest: Codable, Sendable {
             return try KernelSandboxResolver().resolve(in: image)
         case KernelSandboxCompatibilityResolver.name:
             return try KernelSandboxCompatibilityResolver().resolve(in: image)
+        case KernelDeveloperModeResolver.name:
+            return try KernelDeveloperModeResolver().resolve(in: image)
+        case KernelPPLDebugEntitlementsResolver.name:
+            return try KernelPPLDebugEntitlementsResolver().resolve(in: image)
         case KernelPPLAllowInvalidResolver.name:
             return try KernelPPLAllowInvalidResolver().resolve(in: image)
         case KernelVMFaultCSBypassResolver.name:
