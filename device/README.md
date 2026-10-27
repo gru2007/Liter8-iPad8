@@ -111,8 +111,10 @@ switches.
   manifest. `fetch_payloads.sh fixes` calls it on request; it is not a default
   step.
 - `sshrd_provision.sh fixes` (opt-in) installs every file from SSHRD with a
-  readback hash check and creates the default-on switches on the first pass
-  only; `verify` checks the list whenever `payload/fixes` was built.
+  readback hash check; `verify` checks the list whenever `payload/fixes` was
+  built. It creates no switches: `fw tweaks` creates the default-on ones on its
+  first activation, because provisioning must leave `l8localauth` and
+  `l8persona` dormant.
 - `liter8 fw tweaks` (`liter8_tweaks.py activate`) rebuilds, re-syncs anything
   whose hash differs over SSH, runs `lhookctl enable` for this boot session,
   performs the per-boot and self-healing steps (Karing grant, Marketplace

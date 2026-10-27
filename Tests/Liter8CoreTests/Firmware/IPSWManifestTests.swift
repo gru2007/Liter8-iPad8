@@ -212,4 +212,21 @@ struct IPSWManifestTests {
         #expect(Set(pro.map(\.extractedDirectoryName)).count == 1)
         #expect(Set(pro.map(\.boardID)) == [0x06, 0x02])
     }
+
+    /// Only the Wi-Fi iPad skips the cellular step and its iOS 27 CommCenter
+    /// resolver; every iPhone profile keeps it.
+    @Test func onlyTheWiFiIPadHasNoBaseband() throws {
+        let ipad = try #require(DeviceWorkflowRegistry.profiles.first {
+            $0.id == "ipad11,6-j171aap-23H30"
+        })
+        #expect(ipad.hasBaseband == false)
+        #expect(ipad.validationState == .experimental)
+        #expect(ipad.bootPlan.optionalPassthroughFirmware.sorted()
+            == ["Ap,SecurePageTableMonitor", "PMP", "WCHFirmwareUpdater"])
+        for profile in DeviceWorkflowRegistry.profiles where profile.id != ipad.id {
+            #expect(profile.hasBaseband, "\(profile.id)")
+            #expect(profile.productType.hasPrefix("iPhone"), "\(profile.id)")
+            #expect(profile.bootPlan.optionalPassthroughFirmware.isEmpty, "\(profile.id)")
+        }
+    }
 }

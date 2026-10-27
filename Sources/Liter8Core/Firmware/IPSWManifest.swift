@@ -195,6 +195,13 @@ public struct DeviceWorkflowProfile: Equatable, Sendable {
     /// Keeping this in the exact workflow profile prevents Python from
     /// silently applying an n104 workaround to every future device.
     public let bootPlan: DeviceBootPlan
+    /// Whether the board has a cellular modem. Provisioning's `cellular` step
+    /// (CommCenter's data-context patch and the libFDR calibration bypass) has
+    /// nothing to fix on a Wi-Fi-only board, and its CommCenter resolver was
+    /// written for the iOS 27 iPhone builds, so a profile that sets this false
+    /// leaves the step out and `verify` stops expecting it. Defaults to true,
+    /// which is every iPhone profile; j171aap is the one Wi-Fi-only board.
+    public var hasBaseband: Bool = true
 
     public func supports(_ identity: IPSWIdentity) -> Bool {
         guard identity.productVersion == productVersion,
@@ -523,7 +530,10 @@ public enum DeviceWorkflowRegistry {
                 optionalPassthroughFirmware: [
                     "Ap,SecurePageTableMonitor", "PMP", "WCHFirmwareUpdater",
                 ]
-            )
+            ),
+            // iPad11,6 is the Wi-Fi model; the cellular j172aap has no
+            // workflow profile.
+            hasBaseband: false
         ),
     ]
 

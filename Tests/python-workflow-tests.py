@@ -1088,6 +1088,42 @@ class ContextTests(unittest.TestCase):
         self.assertIn("liter8-ssh-out.XXXXXX", provisioner)
         self.assertIn("liter8-ssh-put.XXXXXX", provisioner)
 
+    def test_provisioning_refuses_cellular_where_the_profile_has_no_baseband(self):
+        """j171aap has no modem: the step is refused before any device contact."""
+        base = {
+            "PATH": "/usr/bin:/bin",
+            "LITER8_LAUNCHD_SHA": "a" * 64,
+            "LITER8_LAUNCHD_CACHE_SHA": "b" * 64,
+            "LITER8_LAUNCHD_CACHE_DAEMONS": "1",
+            "LITER8_SETUP_METHODS": "1",
+        }
+        for value, message in (
+            ("0", "has no baseband; the cellular step does not apply"),
+            ("2", "LITER8_HAS_BASEBAND must be 0 or 1"),
+            (None, "did not provide the reviewed baseband policy"),
+        ):
+            environment = dict(base)
+            if value is not None:
+                environment["LITER8_HAS_BASEBAND"] = value
+            with self.subTest(value=value):
+                result = subprocess.run(
+                    [DEVICE / "sshrd_provision.sh", "cellular"],
+                    capture_output=True, text=True, env=environment, check=False, timeout=60,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stdout + result.stderr)
+
+    def test_no_baseband_drops_every_cellular_expectation(self):
+        provisioner = (DEVICE / "sshrd_provision.sh").read_text()
+        fetch = (DEVICE / "fetch_payloads.sh").read_text()
+        runner = (SCRIPTS.parent / "Sources/Liter8CLI/FirmwareWorkflowRunner.swift").read_text()
+        self.assertIn('[ "$step" = cellular ] || no_cellular=', provisioner)
+        self.assertIn('note "CommCenter patch" "not used: this board has no baseband"', provisioner)
+        self.assertIn('fdr_library_state="not used: this board has no baseband"', provisioner)
+        self.assertIn('[ "$item" = cellular ] || no_cellular=', fetch)
+        self.assertIn('selectedEnvironment["LITER8_HAS_BASEBAND"] = profile.hasBaseband ? "1" : "0"',
+                      runner)
+
     def test_provisioning_help_needs_no_device_environment_or_host_tools(self):
         environment = os.environ.copy()
         for name in (

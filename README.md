@@ -48,7 +48,7 @@ PRs welcome on any of these, especially SEP. The Pro and Pro Max are open too, i
 | ------------- | ------- | ------------------------ |
 | iPadOS 26.7.1 | `23H30` | experimental             |
 
-The iPad 8 is an A12, not an A13. CFW restore and the SSH ramdisk work on one; normal boot isn't confirmed yet. See [the iPad 8 notes](docs/runs/IPAD8_J171AAP_23H30.md).
+The iPad 8 is an A12, not an A13. CFW restore and the SSH ramdisk work on one, and a normal boot was reported from the iPad 8 development branch; the merged build has not been booted yet. Every `fw` command needs `--experimental` for it. See [the iPad 8 guide (RU)](docs/IPAD8_GUIDE_RU.md) and [the port notes](docs/runs/IPAD8_J171AAP_23H30.md).
 
 "Run" means i did an erase restore, booted it normally, then rebooted and it came back up. "Experimental" means unverified. It resolves and you can use it with `--experimental`, but nobody has confirmed it on that phone. If you own one and are willing to try, share what happens and i'll change the tag.
 
@@ -161,19 +161,20 @@ Wait until you can SSH into the booted OS, then:
 
 The second `--check` is just so you can see it went through.
 
-### 8. Tweaks, after every boot
+### 8. iPad 8 only: fixes, after every boot
 
-Install ElleKit from Sileo once. Then, each time the device has booted and the
-UI is up:
+On iPad 8 (`iPad11,6` / `23H30`), each time the device has booted and the UI
+is up:
 
 ```sh
-.build/release/liter8 fw tweaks --check
-.build/release/liter8 fw tweaks
+.build/release/liter8 fw tweaks --experimental --check
+.build/release/liter8 fw tweaks --experimental
 ```
 
-This enables injection for the boot and activates every fix in
-`device/tweaks.list`, which provisioning already installed. See
-[device/README.md](device/README.md).
+This syncs and activates the iPad fixes in `device/tweaks.list`. It refuses
+any other device. See [device/README.md](device/README.md) and
+[docs/IPAD8_GUIDE_RU.md](docs/IPAD8_GUIDE_RU.md). On iPhone, tweak injection is
+covered by `fw finalize`; see [docs/USING_TWEAKS.md](docs/USING_TWEAKS.md).
 
 ### 9. Optional: debugger and TrollStore
 

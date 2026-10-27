@@ -138,7 +138,10 @@ class WiringTests(unittest.TestCase):
         self.assertEqual(liter8_tweaks.PAYLOAD, DEVICE / "payload/fixes")
         self.assertIn("readback hash mismatch", provision)
         self.assertIn('note "tweaks.list payload"', provision)
-        self.assertIn("markers-initialized", provision)
+        # Switches come from `fw tweaks`, never from SSHRD: provisioning must
+        # leave l8localauth and l8persona dormant for verify.
+        self.assertNotIn("markers-initialized", provision)
+        self.assertIn("markers-initialized", (DEVICE / "liter8_tweaks.py").read_text())
         self.assertIn('action == "tweaks"', runner)
         self.assertIn('"activate"', runner)
         self.assertIn('"tweaks": "device_provision.py"',

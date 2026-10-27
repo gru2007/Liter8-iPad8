@@ -16,7 +16,7 @@
 # check only the process, which is why the list as a whole is iPad-only.
 #
 # Markers are root-owned, mode 0600 files. A tweak with a marker is dormant
-# without it. `on` markers are created on the first provisioning pass only, so
+# without it. `on` markers are created by the first `liter8 fw tweaks` only, so
 # a marker removed later stays removed. `liter8_tweaks.py enable|disable` flips
 # them on a running device.
 
