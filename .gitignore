@@ -81,3 +81,6 @@ device/spawnprobe/personaalloc
 /device/excportfix/l8excport.dylib
 /device/launchdhook/l8icons.dylib
 /device/trolldecryptfix/writer
+
+# Extracted Apple kernelcaches (private fixture inputs) never enter Git.
+/kc.raw
